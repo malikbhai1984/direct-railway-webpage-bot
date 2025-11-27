@@ -1,167 +1,138 @@
-
-
-
-// =============================
-// Live Football Prediction Server (Railway Ready)
-// =============================
 import express from "express";
 import axios from "axios";
+import moment from "moment-timezone";
 import cors from "cors";
 
 const app = express();
 app.use(cors());
-app.use(express.json());
 
-// ====== API SPORTS KEY ======
+const PORT = process.env.PORT || 8080;
 const API_KEY = process.env.API_FOOTBALL;
 
-// ===== LEAGUES (TOP 10 ONLY) =====
-const LEAGUES = [2, 3, 39, 61, 78, 88, 94, 140, 135, 848];
+// Top 10 leagues (filter)
+const TOP_LEAGUES = [
+  39, 40,     // EPL
+  140, 135,   // La Liga / Serie A
+  78, 61,     // Bundesliga / Ligue 1
+  2, 3,       // Champions League / Europa
+  203, 848    // World Cup Qualifiers
+];
 
-// ===== SSE Clients =====
-let clients = [];
-
-// ==========================
-// SSE Connection
-// ==========================
-app.get("/events", (req, res) => {
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-
-  res.write(`data: ${JSON.stringify({ msg: "WELCOME — Auto Prediction Activated" })}\n\n`);
-
-  clients.push(res);
-
-  req.on("close", () => {
-    clients = clients.filter((c) => c !== res);
-  });
-});
-
-// ==========================
-// Fetch Today’s Matches
-// ==========================
-app.get("/today", async (req, res) => {
+// === === MAIN API CALL FUNCTION (403 FIXED) === ===
+async function callAPI(endpoint, params = {}) {
   try {
-    const today = new Date().toISOString().split("T")[0];
-
-    const r = await axios.get("https://v3.football.api-sports.io/fixtures", {
-      headers: { "x-apisports-key": API_KEY },
-      params: { date: today }
+    const res = await axios.get(endpoint, {
+      headers: {
+        "x-apisports-key": API_KEY,
+        "Accept-Encoding": "gzip,deflate,compress",
+      },
+      params,
     });
+    return res.data;
+  } catch (e) {
+    console.log("API ERROR:", e.response?.data || e.message);
+    return null;
+  }
+}
 
-    const all = r.data.response;
+// === === Today Matches (Left Panel) === ===
+app.get("/today", async (req, res) => {
+  const today = moment().tz("Asia/Karachi").format("YYYY-MM-DD");
 
-    const filtered = all.filter(m => LEAGUES.includes(m.league.id));
+  const data = await callAPI("https://v3.football.api-sports.io/fixtures", {
+    date: today,
+  });
 
-    const final = filtered.map(m => ({
+  if (!data || !data.response) {
+    return res.json({ success: false, error: "API Error" });
+  }
+
+  const matches = data.response
+    .filter(x => TOP_LEAGUES.includes(x.league.id))
+    .map(m => ({
       home: m.teams.home.name,
       away: m.teams.away.name,
       league: m.league.name,
-      kickoff: m.fixture.date,
-      status: m.fixture.status.short
+      kickoff: moment(m.fixture.date).tz("Asia/Karachi").format("HH:mm"),
+      status: m.fixture.status.short,
     }));
 
-    res.json({ success: true, data: final });
-
-  } catch (err) {
-    res.json({ success: false, error: err.message });
-  }
+  res.json({ success: true, data: matches });
 });
 
-// ==========================
-// ML STYLE PREDICTION ENGINE
-// ==========================
-function generatePrediction(match) {
-  if (!match) return null;
 
-  const stats = match.statistics || [];
-  const goals = match.goals || { home: 0, away: 0 };
+// === === Simple Prediction Engine (Live only) === ===
+function predictMatch(m) {
+  const homeG = m.goals.home ?? 0;
+  const awayG = m.goals.away ?? 0;
 
-  let attackHome = Math.floor(Math.random() * 100);
-  let attackAway = Math.floor(Math.random() * 100);
+  // Example ML/AI logic (simple prototype)
+  const total = homeG + awayG;
 
-  let xgHome = (attackHome / 100 * 2).toFixed(2);
-  let xgAway = (attackAway / 100 * 2).toFixed(2);
-
-  let totalXg = (parseFloat(xgHome) + parseFloat(xgAway)).toFixed(2);
-
-  let bttsProb = Math.min(95, attackHome + attackAway) / 2;
-  bttsProb = Math.floor(bttsProb);
-
-  let last10 = Math.floor(Math.random() * 70) + 10;
-
-  let winnerProb = {
-    home: Math.floor((attackHome / (attackHome + attackAway)) * 100),
-    away: Math.floor((attackAway / (attackHome + attackAway)) * 100),
-    draw: Math.floor(Math.random() * 20)
+  const winnerProb = {
+    home: homeG > awayG ? 85 : 30,
+    draw: homeG === awayG ? 88 : 20,
+    away: awayG > homeG ? 85 : 25,
   };
 
-  const strongMarkets = [];
-  if (bttsProb >= 85) strongMarkets.push({ market: "BTTS-YES", prob: bttsProb });
-  if (winnerProb.home >= 85) strongMarkets.push({ market: "Home Win", prob: winnerProb.home });
-  if (winnerProb.away >= 85) strongMarkets.push({ market: "Away Win", prob: winnerProb.away });
-  if (winnerProb.draw >= 85) strongMarkets.push({ market: "Draw", prob: winnerProb.draw });
+  const bttsProb = total >= 2 ? 85 : 30; // basic logic
 
   return {
-    expectedGoals: {
-      home: xgHome,
-      away: xgAway,
-      total: totalXg
-    },
-    bttsProb,
-    last10Prob: last10,
     winnerProb,
-    strongMarkets
+    bttsProb,
+    last10Prob: 50 + total * 10,
+    expectedGoals: {
+      home: homeG + 0.3,
+      away: awayG + 0.3,
+      total: total + 0.6,
+    },
+    strongMarkets: [
+      { market: "Over 0.5", prob: 92 },
+      { market: "BTTS", prob: bttsProb }
+    ],
   };
 }
 
-// ==========================
-// Fetch Live Matches + Predict
-// ==========================
-async function sendLivePredictions() {
-  try {
-    const r = await axios.get("https://v3.football.api-sports.io/fixtures", {
-      headers: { "x-apisports-key": API_KEY },
-      params: { live: "all" }
+// === === LIVE PREDICTION STREAM (Right Panel) === ===
+app.get("/events", async (req, res) => {
+  console.log("Client connected to SSE");
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.flushHeaders();
+
+  res.write(`data: ${JSON.stringify({ welcome: true, msg: "AUTO PREDICTION ACTIVE" })}\n\n`);
+
+  const sendData = async () => {
+    const live = await callAPI("https://v3.football.api-sports.io/fixtures", {
+      live: "all",
     });
 
-    const live = r.data.response;
+    if (!live || !live.response) return;
 
-    if (live.length === 0) return;
+    const matches = live.response
+      .filter(x => TOP_LEAGUES.includes(x.league.id))
+      .map(x => ({
+        teams: `${x.teams.home.name} vs ${x.teams.away.name}`,
+        matchDate: moment(x.fixture.date).tz("Asia/Karachi").format("HH:mm"),
+        prediction: predictMatch(x),
+      }));
 
-    const pack = live.map(m => ({
-      teams: `${m.teams.home.name} vs ${m.teams.away.name}`,
-      matchDate: m.fixture.date,
-      prediction: generatePrediction({
-        goals: m.goals,
-        statistics: m.statistics
-      })
-    }));
+    res.write(`data: ${JSON.stringify({ ts: Date.now(), matches })}\n\n`);
+  };
 
-    const payload = {
-      ts: Date.now(),
-      matches: pack
-    };
+  // First load
+  await sendData();
 
-    clients.forEach(c => c.write(`data: ${JSON.stringify(payload)}\n\n`));
+  // Auto repeat every 5 minutes
+  const interval = setInterval(sendData, 5 * 60 * 1000);
 
-  } catch (err) {
-    console.log("Live prediction error:", err.message);
-  }
-}
-
-// Run every 5 mins
-setInterval(sendLivePredictions, 5 * 60 * 1000);
-
-// First snapshot after 5 seconds
-setTimeout(sendLivePredictions, 5000);
-
-// ==========================
-app.get("/", (req, res) => {
-  res.send("Live Prediction API Running");
+  req.on("close", () => {
+    clearInterval(interval);
+    console.log("SSE Closed");
+  });
 });
 
-// ==========================
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("SERVER RUNNING on PORT " + PORT));
+app.listen(PORT, () => {
+  console.log("SERVER RUNNING on PORT", PORT);
+});
