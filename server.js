@@ -1,11 +1,22 @@
-
-
 const express = require("express");
 const axios = require("axios");
 const mongoose = require("mongoose");
 const moment = require("moment-timezone");
 const cron = require("node-cron");
 const cors = require("cors");
+const path = require("path");
+
+// ---------- Express App ----------
+const app = express();
+app.use(cors());
+const PORT = process.env.PORT || 8080;
+
+// ---------- Serve STATIC index.html ----------
+app.use(express.static(__dirname));
+
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "index.html"));
+});
 
 // ---------- MongoDB ----------
 mongoose.connect("mongodb://mongo:oEClLGHGAdoIpZMRylyfUXPkXVgKojZq@mongodb.railway.internal:27017", {
@@ -15,6 +26,7 @@ mongoose.connect("mongodb://mongo:oEClLGHGAdoIpZMRylyfUXPkXVgKojZq@mongodb.railw
 .then(() => console.log("✔ MongoDB Connected"))
 .catch(err => console.log("❌ Mongo Error:", err));
 
+// ---------- Prediction Schema ----------
 const PredictionSchema = new mongoose.Schema({
     match_id: String,
     league: String,
@@ -23,21 +35,17 @@ const PredictionSchema = new mongoose.Schema({
     confidence: Number,
     created_at: { type: Date, default: Date.now }
 });
+
 const Prediction = mongoose.model("Prediction", PredictionSchema);
 
-// ---------- Express Server ----------
-const app = express();
-app.use(cors());
-const PORT = process.env.PORT || 8080;
-
+// ---------- API KEYS ----------
 const API_FOOTBALL_KEY = "fdab0eef5743173c30f9810bef3a6742";
-const ALLSPORTS_KEY = "839f1988ceeaafddf8480de33d821556e29d8204b4ebdca13cb69c7a9bdcd325";
 
-// Top 10 IMPORTANT LEAGUES
+// Top leagues
 const TOP_LEAGUES = [2, 3, 39, 61, 78, 135, 140, 141, 848, 556];
 const WORLD_CUP_QUALIFIER = 1;
 
-// ---------- FUNCTION: Fetch Today Matches ----------
+// ---------- FUNCTION: Get Today Matches ----------
 async function getTodayMatches() {
     try {
         const today = moment().tz("Asia/Karachi").format("YYYY-MM-DD");
@@ -49,14 +57,12 @@ async function getTodayMatches() {
 
         let matches = res.data.response;
 
-        // FILTER top leagues + world cup qualifiers
         matches = matches.filter(m =>
             TOP_LEAGUES.includes(m.league.id) ||
             m.league.id === WORLD_CUP_QUALIFIER
         );
 
-        console.log("Today Matches:", matches.length);
-
+        console.log("✔ Today Matches:", matches.length);
         return matches;
 
     } catch (err) {
@@ -65,13 +71,12 @@ async function getTodayMatches() {
     }
 }
 
-// ---------- FUNCTION: Prediction Engine ----------
+// ---------- PREDICTION FUNCTION ----------
 async function makePrediction(match) {
     try {
         const home = match.teams.home.name;
         const away = match.teams.away.name;
 
-        // simple 85% prediction logic (will upgrade later)
         const confidence = Math.floor(Math.random() * (90 - 80) + 80);
 
         return {
@@ -88,9 +93,9 @@ async function makePrediction(match) {
     }
 }
 
-// ---------- CRON: Auto Update Every 5 Minutes ----------
+// ---------- CRON JOB (EVERY 5 MINUTES) ----------
 cron.schedule("*/5 * * * *", async () => {
-    console.log("🔁 Running Prediction Auto Update...");
+    console.log("🔁 Auto Prediction Check Running...");
 
     const matches = await getTodayMatches();
 
@@ -99,11 +104,11 @@ cron.schedule("*/5 * * * *", async () => {
         if (!p) continue;
 
         await Prediction.create(p);
-        console.log("✔ Saved Prediction:", p.teams);
+        console.log("✔ Prediction Saved:", p.teams);
     }
 });
 
-// ---------- API: GET LIVE PREDICTIONS ----------
+// ---------- API: LAST 20 PREDICTIONS ----------
 app.get("/prediction", async (req, res) => {
     try {
         const preds = await Prediction.find().sort({ created_at: -1 }).limit(20);
@@ -113,7 +118,7 @@ app.get("/prediction", async (req, res) => {
     }
 });
 
-// ---------- API: CHECK TODAY MATCH ----------
+// ---------- API: Today Matches ----------
 app.get("/today-matches", async (req, res) => {
     const matches = await getTodayMatches();
     res.json(matches);
