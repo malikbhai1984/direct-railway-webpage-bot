@@ -1,123 +1,87 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html>
 <head>
-<meta charset="utf-8" />
-<title>Live Football Predictions (PKT)</title>
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta charset="utf-8">
+<title>Live Predictions</title>
 <style>
-body{ background:#0b0b0b; color:#fff; font-family:Arial, sans-serif; margin:0; padding:18px; }
-header{ text-align:center; margin-bottom:12px }
-.layout{ display:flex; gap:18px; align-items:flex-start; max-width:1200px; margin:0 auto; }
-.left{ width:38%; background:#111; padding:12px; border-radius:10px; border:1px solid #222; }
-.right{ width:62%; background:#0e0f10; padding:12px; border-radius:10px; border:2px solid #00ff90; }
-h2{ margin:6px 0 12px 0; color:#00ff90 }
-.match{ padding:8px; border-bottom:1px solid #222; }
-.predCard{ padding:10px; margin-bottom:10px; border-radius:8px; background:#151515; }
-.strong{ background:#073; color:#fff; }
-.small{ font-size:12px; color:#bbb }
-.meta{ font-size:13px; color:#9cc; margin-bottom:8px }
-@media(max-width:900px){ .layout{ flex-direction:column } .left,.right{ width:100% } }
+body { background:#111; color:#fff; font-family:Arial; padding:20px; }
+.left, .right { padding:15px; background:#1a1a1a; border-radius:10px; }
+.layout { display:flex; gap:20px; }
+h2 { color:#00ff80; }
+.predCard { background:#222; padding:10px; margin-bottom:10px; border-radius:8px; }
+.strong { background:#053; }
+.small { color:#bbb; font-size:12px; }
 </style>
 </head>
 
 <body>
 
-<header>
-<h1>⚽ Live Auto Predictions (PKT)</h1>
-<div class="small">Auto updates every 5 minutes. No reload required.</div>
-</header>
+<h1>⚽ Live Auto Predictions</h1>
 
 <div class="layout">
+  <div class="left" style="width:35%">
+    <h2>Today Matches</h2>
+    <div id="matchList">Loading...</div>
+  </div>
 
-<div class="left">
-<h2>📅 Today Matches (PKT)</h2>
-<div id="matchList">Loading...</div>
-</div>
-
-<div class="right">
-<h2>🔮 Live Predictions</h2>
-<div id="predList">Waiting for updates...</div>
-</div>
-
+  <div class="right" style="width:65%">
+    <h2>Live Predictions</h2>
+    <div id="predList">Waiting...</div>
+  </div>
 </div>
 
 <script>
-// Load Today Matches
-async function loadToday() {
+async function loadToday(){
   try {
     const r = await fetch("/today");
     const j = await r.json();
+
     const box = document.getElementById("matchList");
+    if(!j.success) return box.innerHTML="Error loading";
 
-    if (!j.success) {
-      box.innerHTML = "Error: " + (j.error || "");
-      return;
-    }
-
-    if (j.data.length === 0) {
-      box.innerHTML = "<div class='small'>No matches today.</div>";
-      return;
-    }
-
-    let html = "";
-    j.data.forEach(m => {
-      html += `<div class="match"><strong>${m.home} vs ${m.away}</strong><div class="small">${m.league} • ${m.kickoff} PKT • ${m.status}</div></div>`;
+    let html="";
+    j.data.forEach(m=>{
+      html += `<div><b>${m.home} vs ${m.away}</b><br>
+      <span class='small'>${m.league} • ${m.kickoff} PKT • ${m.status}</span></div><hr>`;
     });
 
     box.innerHTML = html;
-  } catch (e) {
-    document.getElementById("matchList").innerHTML = "Fetch error";
-  }
+
+  } catch(e){ console.log(e); }
 }
+
 loadToday();
+setInterval(loadToday, 7*60*1000);
 
-// SSE Live Predictions
-const predBox = document.getElementById("predList");
+// ========== SSE ==========
+const box = document.getElementById("predList");
 const sse = new EventSource("/events");
-
-sse.onopen = () => {
-  predBox.innerHTML = "<div class='small'>Connected — Auto Prediction Activated...</div>";
-};
 
 sse.onmessage = e => {
   try {
     const data = JSON.parse(e.data);
-
-    if (!data.matches) {
-      predBox.innerHTML = `<div class="small">${data.msg}</div>`;
+    if(data.welcome){
+      box.innerHTML = "<div class='small'>🔔 AUTO PREDICTION ACTIVE</div>";
       return;
     }
 
-    let html = `<div class="meta">Updated: ${new Date(data.ts).toLocaleString()}</div>`;
-
-    data.matches.forEach(item => {
-      const p = item.prediction;
-      const strong = p && (p.bttsProb >= 85 || p.winnerProb.home >= 85 || p.winnerProb.away >= 85);
-
-      html += `<div class="predCard ${strong ? "strong" : ""}">`;
-      html += `<div><strong>${item.teams}</strong> <span class="small">(${item.matchDate})</span></div>`;
-
-      if (p) {
-        html += `<div>Winner: H ${p.winnerProb.home}% • D ${p.winnerProb.draw}% • A ${p.winnerProb.away}%</div>`;
-        html += `<div>BTTS: ${p.bttsProb}% • Last10: ${p.last10Prob}%</div>`;
-        html += `<div class="small">xG: H ${p.expectedGoals.home} A ${p.expectedGoals.away} Total ${p.expectedGoals.total}</div>`;
-      } else {
-        html += `<div class="small">No data</div>`;
-      }
-
-      html += `</div>`;
+    let html = `<div class='small'>Updated: ${new Date(data.ts).toLocaleString()}</div>`;
+    data.matches.forEach(m=>{
+      const p = m.prediction;
+      const strong = (p.bttsProb>=85 || p.winnerProb.home>=85 || p.winnerProb.away>=85);
+      html += `<div class="predCard ${strong?'strong':''}">
+        <b>${m.teams}</b> <span class='small'>(${m.matchDate})</span><br>
+        Winner → H:${p.winnerProb.home}% D:${p.winnerProb.draw}% A:${p.winnerProb.away}%<br>
+        BTTS → ${p.bttsProb}%<br>
+        Last10 → ${p.last10Prob}%<br>
+        <span class='small'>Exp: H ${p.expectedGoals.home} • A ${p.expectedGoals.away}</span>
+      </div>`;
     });
 
-    predBox.innerHTML = html;
+    box.innerHTML = html;
 
-  } catch (err) {
-    predBox.innerHTML = `<div class="small" style="color:red;">Parse Error</div>`;
-  }
+  } catch(err){ console.log("SSE error", err); }
 };
-
-// auto-refresh today matches
-setInterval(loadToday, 7 * 60 * 1000);
 </script>
 
 </body>
