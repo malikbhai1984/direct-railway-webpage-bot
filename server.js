@@ -19,12 +19,14 @@ app.get("/", (req, res) => {
 });
 
 // ---------- MongoDB ----------
-mongoose.connect("mongodb://mongo:oEClLGHGAdoIpZMRylyfUXPkXVgKojZq@mongodb.railway.internal:27017", {
+mongoose.connect("mongodb://mongo:oEClLGHGAdoIpZMRylyfUXPkXVgKojZq@trolley.proxy.rlwy.net:40178", {
     useNewUrlParser: true,
-    useUnifiedTopology: true
+    useUnifiedTopology: true,
+    authSource: "admin"
 })
 .then(() => console.log("✔ MongoDB Connected"))
 .catch(err => console.log("❌ Mongo Error:", err));
+
 
 // ---------- Prediction Schema ----------
 const PredictionSchema = new mongoose.Schema({
