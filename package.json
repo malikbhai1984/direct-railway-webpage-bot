@@ -2,6 +2,7 @@
   "name": "direct-railway-webpage-bot",
   "version": "1.0.0",
   "description": "Railway Live Predictions + MongoDB + Frontend Integration",
+  "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
