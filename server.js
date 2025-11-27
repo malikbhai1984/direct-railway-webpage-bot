@@ -179,7 +179,7 @@ app.get("/events", async (req,res)=>{
 });
 
 // ----------------- API -----------------
-app.get("/prediction", async (req,res)=>{ const preds=await Prediction.find().sort({created_at:-1}).limit(20); res.json(preds); });
+app.get("/prediction", async (req,res)=>{ const preds = await Prediction.find().sort({ created_at: -1 }).limit(200); res.json(preds); });
 app.get("/today-matches", async (req,res)=>{ const matches = await getTodayMatches(); res.json(matches); });
 
 // ----------------- STATIC FRONTEND -----------------
