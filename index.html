@@ -5,93 +5,354 @@
 <title>Live Football Predictions (PKT)</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <style>
-  body{ background:#0b0b0b; color:#fff; font-family:Arial, sans-serif; margin:0; padding:18px; }
-  header{ text-align:center; margin-bottom:12px }
-  .layout{ display:flex; gap:18px; align-items:flex-start; max-width:1200px; margin:0 auto; }
-  .left{ width:38%; background:#111; padding:12px; border-radius:10px; border:1px solid #222; }
-  .right{ width:62%; background:#0e0f10; padding:12px; border-radius:10px; border:2px solid #00ff90; }
-  h2{ margin:6px 0 12px 0; color:#00ff90 }
-  .match{ padding:8px; border-bottom:1px solid #222; }
-  .predCard{ padding:10px; margin-bottom:10px; border-radius:8px; background:#151515; }
-  .strong{ background:#073; color:#fff; }
-  .small{ font-size:12px; color:#bbb }
-  .meta{ font-size:13px; color:#9cc; margin-bottom:8px }
-  @media(max-width:900px){ .layout{ flex-direction:column } .left,.right{ width:100% } }
+  :root {
+    --primary: #00ff90;
+    --dark-bg: #0b0b0b;
+    --card-bg: #111;
+    --border: #222;
+    --text: #fff;
+    --text-secondary: #bbb;
+    --success: #073;
+    --warning: #ff9900;
+    --danger: #ff3333;
+  }
+  
+  body{ 
+    background: var(--dark-bg); 
+    color: var(--text); 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    margin:0; 
+    padding:18px; 
+    line-height: 1.6;
+  }
+  
+  header{ 
+    text-align:center; 
+    margin-bottom:20px;
+    padding: 15px;
+    background: var(--card-bg);
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+  
+  .layout{ 
+    display:flex; 
+    gap:18px; 
+    align-items:flex-start; 
+    max-width:1200px; 
+    margin:0 auto; 
+  }
+  
+  .left{ 
+    width:38%; 
+    background:var(--card-bg); 
+    padding:15px; 
+    border-radius:10px; 
+    border:1px solid var(--border);
+    min-height: 600px;
+  }
+  
+  .right{ 
+    width:62%; 
+    background:#0e0f10; 
+    padding:15px; 
+    border-radius:10px; 
+    border:2px solid var(--primary);
+    min-height: 600px;
+  }
+  
+  h1 {
+    color: var(--primary);
+    margin: 0 0 10px 0;
+    font-size: 1.8rem;
+  }
+  
+  h2{ 
+    margin:0 0 15px 0; 
+    color:var(--primary);
+    font-size: 1.3rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .match{ 
+    padding:12px; 
+    border-bottom:1px solid var(--border); 
+    transition: background 0.3s;
+  }
+  
+  .match:hover {
+    background: rgba(0, 255, 144, 0.05);
+  }
+  
+  .predCard{ 
+    padding:15px; 
+    margin-bottom:15px; 
+    border-radius:8px; 
+    background:#151515;
+    border-left: 4px solid transparent;
+    transition: transform 0.2s;
+  }
+  
+  .predCard:hover {
+    transform: translateY(-2px);
+  }
+  
+  .strong{ 
+    background:var(--success); 
+    color:#fff;
+    border-left-color: var(--primary);
+  }
+  
+  .warning {
+    background: rgba(255, 153, 0, 0.1);
+    border-left-color: var(--warning);
+  }
+  
+  .small{ 
+    font-size:12px; 
+    color:var(--text-secondary);
+    line-height: 1.4;
+  }
+  
+  .meta{ 
+    font-size:13px; 
+    color:#9cc; 
+    margin-bottom:12px;
+    text-align: right;
+  }
+  
+  .status-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+  }
+  
+  .status-live {
+    background: var(--danger);
+    animation: pulse 1.5s infinite;
+  }
+  
+  .status-connected {
+    background: var(--primary);
+  }
+  
+  @keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+  }
+  
+  .confidence-bar {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+    margin-top: 4px;
+    overflow: hidden;
+  }
+  
+  .confidence-fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
+  
+  .market-tag {
+    display: inline-block;
+    background: var(--primary);
+    color: var(--dark-bg);
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: bold;
+    margin-right: 6px;
+    margin-top: 5px;
+  }
+  
+  .loading {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-secondary);
+    font-style: italic;
+  }
+  
+  .error {
+    color: var(--danger);
+    text-align: center;
+    padding: 10px;
+  }
+  
+  @media(max-width:900px){ 
+    .layout{ 
+      flex-direction:column; 
+    } 
+    .left,.right{ 
+      width:100%; 
+    } 
+  }
 </style>
 </head>
 <body>
 <header>
   <h1>⚽ Live Auto Predictions (PKT)</h1>
-  <div class="small">Auto updates every 5–7 minutes. No reload required.</div>
+  <div class="small">
+    <span class="status-indicator status-connected"></span>
+    AI-powered predictions • Auto updates every 5 minutes • No reload required
+  </div>
 </header>
 
 <div class="layout">
   <div class="left">
-    <h2>📅 Today Matches (PKT)</h2>
-    <div id="matchList">Loading...</div>
+    <h2>📅 Today's Matches</h2>
+    <div id="matchList" class="loading">Loading today's matches...</div>
   </div>
 
   <div class="right">
     <h2>🔮 Live Predictions</h2>
-    <div id="predList">Waiting for updates...</div>
+    <div id="predList" class="loading">Initializing prediction engine...</div>
+    <div class="meta" id="lastUpdated">Last updated: --</div>
   </div>
 </div>
 
 <script>
-  // load left side (today matches)
-  async function loadToday(){
-    try{
-      const r = await fetch('/today');
-      const j = await r.json();
-      const box = document.getElementById('matchList');
-      if(!j.success){ box.innerHTML = 'Error: '+(j.error||''); return; }
-      if(j.data.length===0){ box.innerHTML = '<div class="small">No matches for today (top leagues).</div>'; return; }
-      let html='';
-      j.data.forEach(m=>{
-        html += `<div class="match"><strong>${m.home} vs ${m.away}</strong><div class="small">${m.league} • ${m.kickoff} PKT • ${m.status}</div></div>`;
+  // Load today's matches
+  async function loadTodayMatches() {
+    try {
+      const response = await fetch('/today');
+      const data = await response.json();
+      
+      const matchList = document.getElementById('matchList');
+      
+      if (!data.success) {
+        matchList.innerHTML = `<div class="error">Error loading matches: ${data.error}</div>`;
+        return;
+      }
+      
+      if (data.data.length === 0) {
+        matchList.innerHTML = '<div class="small">No matches found for today in top leagues.</div>';
+        return;
+      }
+      
+      let html = '';
+      data.data.forEach(match => {
+        html += `
+          <div class="match">
+            <div><strong>${match.home} vs ${match.away}</strong></div>
+            <div class="small">${match.league} • ${match.kickoff} PKT • ${match.status}</div>
+          </div>
+        `;
       });
-      box.innerHTML = html;
-    }catch(e){ document.getElementById('matchList').innerHTML = 'Fetch error'; }
-  }
-  loadToday();
-
-  // SSE for live predictions (right side)
-  const predBox = document.getElementById('predList');
-  const sse = new EventSource('/events');
-
-  sse.onopen = ()=> { predBox.innerHTML = '<div class="small">Connected — waiting for first snapshot...</div>'; };
-  sse.onerror = ()=> { predBox.innerHTML = '<div class="small" style="color:#f33">Connection lost. Check backend.</div>'; };
-
-  sse.onmessage = (e) => {
-    try{
-      const data = JSON.parse(e.data);
-      // data.matches : array of objects { teams, matchDate, prediction }
-      if(!data || !data.matches){ predBox.innerHTML = 'No data'; return; }
-      let html = `<div class="meta">Updated: ${new Date(data.ts).toLocaleString()}</div>`;
-      data.matches.forEach(item=>{
-        const p = item.prediction;
-        const strong = (p && ( (p.bttsProb && p.bttsProb>=85) || (p.winnerProb && (p.winnerProb.home>=85 || p.winnerProb.away>=85 || p.winnerProb.draw>=85)) || (p.strongMarkets && p.strongMarkets.length>0) ));
-        html += `<div class="predCard ${strong? 'strong':''}">`;
-        html += `<div><strong>${item.teams}</strong> <span class="small">(${item.matchDate})</span></div>`;
-        if(p){
-          html += `<div>Winner: Home ${p.winnerProb.home}% • Draw ${p.winnerProb.draw}% • Away ${p.winnerProb.away}%</div>`;
-          html += `<div>BTTS: ${p.bttsProb}% • Last10: ${p.last10Prob}%</div>`;
-          if(p.strongMarkets && p.strongMarkets.length) html += `<div class="small">Strong markets: ${p.strongMarkets.map(s=>s.market+'('+s.prob+'%)').join(', ')}</div>`;
-          html += `<div class="small">ExpGoals: H:${p.expectedGoals.home} A:${p.expectedGoals.away} Total:${p.expectedGoals.total}</div>`;
-        } else {
-          html += `<div class="small">No prediction data yet.</div>`;
-        }
-        html += `</div>`;
-      });
-      predBox.innerHTML = html;
-    }catch(err){
-      predBox.innerHTML = '<div class="small" style="color:#f33">Front-end parse error</div>';
-      console.error("SSE parse",err);
+      
+      matchList.innerHTML = html;
+    } catch (error) {
+      document.getElementById('matchList').innerHTML = `<div class="error">Network error loading matches</div>`;
+      console.error('Match loading error:', error);
     }
-  };
+  }
 
-  // optionally refresh matches every 7 minutes
-  setInterval(loadToday, 7*60*1000);
+  // SSE for live predictions
+  const predBox = document.getElementById('predList');
+  const lastUpdated = document.getElementById('lastUpdated');
+  
+  let sse;
+  
+  function connectSSE() {
+    sse = new EventSource('/events');
+    
+    sse.onopen = () => {
+      predBox.innerHTML = '<div class="small">Connected — waiting for predictions...</div>';
+    };
+    
+    sse.onerror = () => {
+      predBox.innerHTML = '<div class="error">Connection lost. Reconnecting...</div>';
+      setTimeout(connectSSE, 5000);
+    };
+    
+    sse.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        if (data.error) {
+          predBox.innerHTML = `<div class="error">Prediction error: ${data.error}</div>`;
+          return;
+        }
+        
+        if (!data.matches || data.matches.length === 0) {
+          predBox.innerHTML = '<div class="small">No predictions available at the moment.</div>';
+          return;
+        }
+        
+        let html = '';
+        data.matches.forEach(item => {
+          const p = item.prediction;
+          
+          // Determine card style based on prediction confidence
+          let cardClass = 'predCard';
+          if (p && p.strongMarkets && p.strongMarkets.length > 0) {
+            cardClass += ' strong';
+          } else if (p && (
+            (p.bttsProb && p.bttsProb >= 85) || 
+            (p.winnerProb && (p.winnerProb.home >= 85 || p.winnerProb.away >= 85 || p.winnerProb.draw >= 85))
+          )) {
+            cardClass += ' warning';
+          }
+          
+          html += `<div class="${cardClass}">`;
+          html += `<div><strong>${item.teams}</strong> <span class="small">(${item.matchDate})</span></div>`;
+          
+          if (p) {
+            // Winner probabilities with confidence bars
+            html += `<div class="small" style="margin-top:8px;">Winner Probabilities:</div>`;
+            html += `<div class="small">Home: ${p.winnerProb.home}% • Draw: ${p.winnerProb.draw}% • Away: ${p.winnerProb.away}%</div>`;
+            html += `<div class="confidence-bar"><div class="confidence-fill" style="width: ${Math.max(p.winnerProb.home, p.winnerProb.draw, p.winnerProb.away)}%"></div></div>`;
+            
+            // BTTS and Last 10 probabilities
+            html += `<div style="margin-top:8px;">`;
+            html += `<span class="small">BTTS: ${p.bttsProb}% </span>`;
+            html += `<span class="small" style="margin-left:10px;">Last 10min Goal: ${p.last10Prob}%</span>`;
+            html += `</div>`;
+            html += `<div class="confidence-bar"><div class="confidence-fill" style="width: ${p.bttsProb}%"></div></div>`;
+            
+            // Strong markets
+            if (p.strongMarkets && p.strongMarkets.length) {
+              html += `<div style="margin-top:8px;">`;
+              p.strongMarkets.forEach(market => {
+                html += `<span class="market-tag">${market.market} (${market.prob}%)</span>`;
+              });
+              html += `</div>`;
+            }
+            
+            // Expected goals
+            html += `<div class="small" style="margin-top:8px;">Expected Goals: H:${p.expectedGoals.home} A:${p.expectedGoals.away} Total:${p.expectedGoals.total}</div>`;
+          } else {
+            html += `<div class="small" style="margin-top:8px;">No prediction data available yet.</div>`;
+          }
+          
+          html += `</div>`;
+        });
+        
+        predBox.innerHTML = html;
+        lastUpdated.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+        
+      } catch (error) {
+        console.error('SSE parse error:', error);
+        predBox.innerHTML = '<div class="error">Error processing prediction data</div>';
+      }
+    };
+  }
+
+  // Initialize
+  document.addEventListener('DOMContentLoaded', function() {
+    loadTodayMatches();
+    connectSSE();
+    
+    // Refresh matches every 7 minutes
+    setInterval(loadTodayMatches, 7 * 60 * 1000);
+  });
 </script>
 </body>
 </html>
