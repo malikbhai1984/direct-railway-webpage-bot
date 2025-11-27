@@ -173,7 +173,8 @@ app.get("/events", async (req,res)=>{
     }
   };
 
-  const interval = setInterval(sendUpdates,5000);
+  
+  const interval = setInterval(sendUpdates, 5*60*1000);
   req.on("close",()=>{ clearInterval(interval); console.log("❌ SSE Client Disconnected"); });
 });
 
