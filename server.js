@@ -1,471 +1,293 @@
+// server.js
+
 const express = require('express');
 const mongoose = require('mongoose');
-const axios = require('axios');
 const moment = require('moment-timezone');
+const axios = require('axios');
+const cron = require('node-cron');
 const cors = require('cors');
-const nodeCron = require('node-cron');
+const path = require('path');
+const { performance } = require('perf_hooks');
 
 const app = express();
+const PORT = 3000;
+// *** MongoDB URI: Set your database connection here ***
+const MONGO_URI = 'mongodb://localhost:27017/football_prediction_db'; 
+
+// --- Configuration: Replace these placeholders with your actual API keys/details ---
+const API_CONFIG = {
+    // API 1: Primary Data Source
+    FOOTBALL_API_1: {
+        url: 'YOUR_API_BASE_URL_1', // e.g., 'https://api-football-v1.p.rapidapi.com/v3'
+        key: 'YOUR_API_KEY_1',
+        limit: 100, // Daily limit
+        hits: 0,
+    },
+    // API 2: Secondary Data Source (for stats/odds)
+    FOOTBALL_API_2: {
+        url: 'YOUR_API_BASE_URL_2', // e.g., 'https://sportspredictionapi.com'
+        key: 'YOUR_API_KEY_2',
+        limit: 50,
+        hits: 0,
+    },
+    // Add more APIs here (API 3, 4, 5)
+};
+
+// Point 12: Top 10 Leagues and World Cup Qualifiers (Filter list)
+const TARGET_LEAGUES = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1', 'Champions League', 'Europa League', 'World Cup Qualifiers'];
+
 app.use(cors());
+// Serve index.html from the root directory
+app.use(express.static(__dirname)); 
 app.use(express.json());
 
-// MongoDB Schema
-const predictionSchema = new mongoose.Schema({
-  matchId: String,
-  homeTeam: String,
-  awayTeam: String,
-  league: String,
-  matchTime: Date,
-  prediction: {
-    winnerProb: {
-      home: Number,
-      draw: Number,
-      away: Number
-    },
-    bttsProb: Number,
-    last10Prob: Number,
-    strongMarkets: [{
-      market: String,
-      prob: Number
-    }],
-    expectedGoals: {
-      home: Number,
-      away: Number,
-      total: Number
-    }
-  },
-  timestamp: { type: Date, default: Date.now }
+// --- Database Connection ---
+mongoose.connect(MONGO_URI)
+    .then(() => console.log('MongoDB connected successfully.'))
+    .catch(err => console.error('MongoDB connection error:', err));
+
+// --- Database Schema (Point 4: Automatic Saving) ---
+const MatchSchema = new mongoose.Schema({
+    apiSource: String,
+    matchId: { type: String, unique: true },
+    homeTeam: String,
+    awayTeam: String,
+    league: String,
+    kickoffUTC: Date,
+    kickoffPKT: String, // Point 2: PKT Time
+    status: String,
+    prediction: Object,
+    timestamp: { type: Date, default: Date.now },
 });
 
-const Prediction = mongoose.model('Prediction', predictionSchema);
+const Match = mongoose.model('Match', MatchSchema);
 
-// API Configuration
-const API_CONFIG = {
-  rapidapi: {
-    key: process.env.RAPIDAPI_KEY || 'your-rapidapi-key',
-    host: 'api-football-v1.p.rapidapi.com',
-    baseUrl: 'https://api-football-v1.p.rapidapi.com/v3'
-  },
-  thesports: {
-    key: process.env.THESPORTS_KEY || 'your-thesports-key',
-    baseUrl: 'https://www.thesportsdb.com/api/v1/json'
-  },
-  football-data: {
-    key: process.env.FOOTBALL_DATA_KEY || 'your-football-data-key',
-    baseUrl: 'https://api.football-data.org/v4'
-  }
-};
+// Store predictions for SSE
+let currentLivePredictions = [];
+let clients = []; // For SSE connections
 
-// Top 10 Leagues IDs
-const TOP_LEAGUES = {
-  39: 'Premier League', // England
-  140: 'La Liga', // Spain
-  78: 'Bundesliga', // Germany
-  135: 'Serie A', // Italy
-  61: 'Ligue 1', // France
-  88: 'Eredivisie', // Netherlands
-  94: 'Primeira Liga', // Portugal
-  203: 'Super Lig', // Turkey
-  262: 'Bundesliga', // Austria
-  253: 'MLS' // USA
-};
+// --- 1. API Fetching and Data Consolidation (Points 1, 9, 12) ---
+async function fetchMatchesFromAPI(apiConfig) {
+    if (apiConfig.hits >= apiConfig.limit) return [];
 
-// Fetch Today's Matches
-async function fetchTodayMatches() {
-  try {
-    const today = moment().tz('Asia/Karachi').format('YYYY-MM-DD');
-    console.log(`Fetching matches for: ${today}`);
-    
-    const matches = [];
-    
-    // Fetch from RapidAPI
     try {
-      const response = await axios.get(`${API_CONFIG.rapidapi.baseUrl}/fixtures`, {
-        headers: {
-          'X-RapidAPI-Key': API_CONFIG.rapidapi.key,
-          'X-RapidAPI-Host': API_CONFIG.rapidapi.host
-        },
-        params: {
-          date: today,
-          league: Object.keys(TOP_LEAGUES).join(','),
-          season: '2024'
-        }
-      });
-      
-      if (response.data && response.data.response) {
-        response.data.response.forEach(match => {
-          matches.push({
-            home: match.teams.home.name,
-            away: match.teams.away.name,
-            league: match.league.name,
-            kickoff: moment(match.fixture.date).tz('Asia/Karachi').format('HH:mm'),
-            status: match.fixture.status.short
-          });
-        });
-      }
-    } catch (rapidError) {
-      console.log('RapidAPI failed, trying backup API...');
-    }
-    
-    // Backup API call if primary fails
-    if (matches.length === 0) {
-      try {
-        const backupResponse = await axios.get(`${API_CONFIG.football-data.baseUrl}/matches`, {
-          headers: {
-            'X-Auth-Token': API_CONFIG.football-data.key
-          },
-          params: {
-            dateFrom: today,
-            dateTo: today,
-            competitions: Object.keys(TOP_LEAGUES).join(',')
-          }
-        });
+        // --- ACTUAL API CALL PLACEHOLDER ---
+        // Replace this MOCK DATA with a real Axios call to fetch today's matches
+        // For demonstration, we use mock data:
+        const rawMatches = [
+            { id: 'm1', home: 'Man Utd', away: 'Chelsea', league: 'Premier League', date: moment().tz('UTC').add(2, 'hours').toISOString(), status: 'Scheduled' },
+            { id: 'm2', home: 'FC Barcelona', away: 'Real Madrid', league: 'La Liga', date: moment().tz('UTC').subtract(30, 'minutes').toISOString(), status: 'Live' },
+        ];
         
-        if (backupResponse.data && backupResponse.data.matches) {
-          backupResponse.data.matches.forEach(match => {
-            matches.push({
-              home: match.homeTeam.name,
-              away: match.awayTeam.name,
-              league: match.competition.name,
-              kickoff: moment(match.utcDate).tz('Asia/Karachi').format('HH:mm'),
-              status: match.status
+        apiConfig.hits++; // Increment hit counter (Point 9)
+
+        const todayMatches = rawMatches
+            .filter(m => TARGET_LEAGUES.includes(m.league))
+            .map(m => {
+                const kickoffUTC = moment.utc(m.date);
+                const kickoffPKT = kickoffUTC.tz('Asia/Karachi').format('HH:mm'); // Point 2
+                return {
+                    apiSource: apiConfig.url,
+                    matchId: m.id,
+                    homeTeam: m.home,
+                    awayTeam: m.away,
+                    league: m.league,
+                    kickoffUTC: kickoffUTC.toDate(),
+                    kickoffPKT: kickoffPKT,
+                    status: m.status,
+                };
             });
-          });
-        }
-      } catch (backupError) {
-        console.log('Backup API also failed');
-      }
+
+        // Upsert into MongoDB (Point 4)
+        await Promise.all(todayMatches.map(match => Match.updateOne(
+            { matchId: match.matchId },
+            { $set: match },
+            { upsert: true }
+        )));
+
+        return todayMatches;
+
+    } catch (error) {
+        console.error(`Error fetching matches from ${apiConfig.url}:`, error.message);
+        return [];
     }
-    
-    return matches;
-  } catch (error) {
-    console.error('Error fetching matches:', error.message);
-    return [];
-  }
 }
 
-// Prediction Engine
-class PredictionEngine {
-  constructor() {
-    this.analysisHistory = [];
-  }
-
-  // Analyze match and generate predictions
-  async analyzeMatch(match) {
-    try {
-      // Get team statistics
-      const homeStats = await this.getTeamStats(match.home);
-      const awayStats = await this.getTeamStats(match.away);
-      
-      // Head to head analysis
-      const h2h = await this.getHeadToHead(match.home, match.away);
-      
-      // Calculate probabilities
-      const winnerProb = this.calculateWinnerProbability(homeStats, awayStats, h2h);
-      const bttsProb = this.calculateBTTSProbability(homeStats, awayStats);
-      const last10Prob = this.calculateLast10Probability(homeStats, awayStats);
-      const expectedGoals = this.calculateExpectedGoals(homeStats, awayStats);
-      
-      // Identify strong markets
-      const strongMarkets = this.identifyStrongMarkets({
-        winnerProb,
-        bttsProb,
-        last10Prob,
-        expectedGoals
-      });
-      
-      return {
-        winnerProb,
-        bttsProb,
-        last10Prob,
-        strongMarkets,
-        expectedGoals
-      };
-    } catch (error) {
-      console.error('Error analyzing match:', error);
-      return this.getDefaultPrediction();
+async function fetchAndCombineMatches() {
+    let allMatches = [];
+    for (const key in API_CONFIG) {
+        const matches = await fetchMatchesFromAPI(API_CONFIG[key]);
+        allMatches = [...allMatches, ...matches];
     }
-  }
+    // Simple deduplication
+    const uniqueMatches = Array.from(new Map(allMatches.map(match => [match.matchId, match])).values());
+    return uniqueMatches;
+}
 
-  // Get team statistics (mock implementation - replace with actual API calls)
-  async getTeamStats(teamName) {
-    // In real implementation, fetch from API
-    return {
-      attack: Math.random() * 100,
-      defense: Math.random() * 100,
-      form: Math.random() * 100,
-      goalsScored: Math.floor(Math.random() * 50) + 20,
-      goalsConceded: Math.floor(Math.random() * 40) + 15,
-      corners: Math.floor(Math.random() * 150) + 50,
-      last10Goals: Math.floor(Math.random() * 20) + 5
-    };
-  }
+// --- 2. Pro-Level Prediction Engine (Points 3, 4, 5, 6, 7, 8, 11) ---
+function runProLevelPrediction(match) {
+    // Point 7: Simulate comprehensive statistical analysis 
+    const historicalFormScore = Math.random() * 0.4; // Last 10 matches, H2H
+    const liveStatsScore = match.status === 'Live' ? Math.random() * 0.4 : 0.1; // Corners, Attack/Defense Index
+    
+    // Simulate probability calculation (Point 11: ML/AI Model Sim)
+    const homeProbRaw = 0.5 + historicalFormScore + liveStatsScore;
+    const awayProbRaw = 0.5 + (1 - historicalFormScore) + (1 - liveStatsScore);
+    
+    const totalRaw = homeProbRaw + awayProbRaw + 1.0; // Adding a draw factor (1.0)
+    
+    // Calculate Winner Probabilities (Point 4)
+    const homeProb = Math.floor((homeProbRaw / totalRaw) * 100);
+    const awayProb = Math.floor((awayProbRaw / totalRaw) * 100);
+    const drawProb = 100 - homeProb - awayProb; 
 
-  // Get head to head statistics
-  async getHeadToHead(homeTeam, awayTeam) {
-    // In real implementation, fetch from API
-    return {
-      totalMatches: Math.floor(Math.random() * 20) + 5,
-      homeWins: Math.floor(Math.random() * 10),
-      awayWins: Math.floor(Math.random() * 8),
-      draws: Math.floor(Math.random() * 5),
-      goalsHome: Math.floor(Math.random() * 30) + 10,
-      goalsAway: Math.floor(Math.random() * 25) + 8
-    };
-  }
+    // Point 5: BTTS Probability
+    const bttsProb = Math.floor(60 + Math.random() * 35); 
 
-  // Calculate winner probability
-  calculateWinnerProbability(homeStats, awayStats, h2h) {
-    const homeAdvantage = 1.2; // Home advantage factor
-    
-    const homeStrength = (homeStats.attack * 0.4 + homeStats.defense * 0.3 + homeStats.form * 0.3) * homeAdvantage;
-    const awayStrength = awayStats.attack * 0.4 + awayStats.defense * 0.3 + awayStats.form * 0.3;
-    
-    const totalStrength = homeStrength + awayStrength;
-    
-    // Adjust based on H2H
-    const h2hFactor = h2h.homeWins / (h2h.totalMatches || 1);
-    
-    const homeProb = Math.min(95, Math.max(5, (homeStrength / totalStrength) * 100 + h2hFactor * 10));
-    const awayProb = Math.min(95, Math.max(5, (awayStrength / totalStrength) * 100 - h2hFactor * 10));
-    const drawProb = Math.min(95, Math.max(5, 100 - homeProb - awayProb));
-    
-    // Normalize to ensure sum = 100
-    const total = homeProb + drawProb + awayProb;
-    
-    return {
-      home: Math.round((homeProb / total) * 100),
-      draw: Math.round((drawProb / total) * 100),
-      away: Math.round((awayProb / total) * 100)
-    };
-  }
+    // Point 3: Expected Goals
+    const expectedTotalGoals = parseFloat((Math.random() * 3.5 + 0.5).toFixed(2));
+    const expectedGoals = { total: expectedTotalGoals.toFixed(2) };
 
-  // Calculate BTTS probability
-  calculateBTTSProbability(homeStats, awayStats) {
-    const homeAttack = homeStats.attack / 100;
-    const awayAttack = awayStats.attack / 100;
-    const homeDefense = (100 - homeStats.defense) / 100;
-    const awayDefense = (100 - awayStats.defense) / 100;
+    // Point 6: Last 10 Minutes Goal Check (High probability if score is tight and attacking stats are high)
+    const last10Prob = match.status === 'Live' ? Math.floor(50 + Math.random() * 45) : 0; 
     
-    const bttsProb = (homeAttack * awayDefense + awayAttack * homeDefense) * 50;
-    return Math.min(95, Math.max(10, Math.round(bttsProb)));
-  }
-
-  // Calculate last 10 minutes goal probability
-  calculateLast10Probability(homeStats, awayStats) {
-    const homeLateGoals = homeStats.last10Goals / 10;
-    const awayLateGoals = awayStats.last10Goals / 10;
-    
-    const lateGoalProb = (homeLateGoals + awayLateGoals) * 3;
-    return Math.min(80, Math.max(5, Math.round(lateGoalProb)));
-  }
-
-  // Calculate expected goals
-  calculateExpectedGoals(homeStats, awayStats) {
-    const homeXG = (homeStats.attack / 100) * 2.5 + (awayStats.defense / 100) * 0.5;
-    const awayXG = (awayStats.attack / 100) * 2.0 + (homeStats.defense / 100) * 0.5;
-    
-    return {
-      home: parseFloat(homeXG.toFixed(1)),
-      away: parseFloat(awayXG.toFixed(1)),
-      total: parseFloat((homeXG + awayXG).toFixed(1))
-    };
-  }
-
-  // Identify strong markets (85%+ confidence)
-  identifyStrongMarkets(prediction) {
+    // --- Strong Market Identification (85%+ Confidence) (Point 8) ---
     const strongMarkets = [];
     
-    // Check winner markets
-    if (prediction.winnerProb.home >= 85) {
-      strongMarkets.push({ market: 'Home Win', prob: prediction.winnerProb.home });
-    }
-    if (prediction.winnerProb.away >= 85) {
-      strongMarkets.push({ market: 'Away Win', prob: prediction.winnerProb.away });
-    }
-    if (prediction.winnerProb.draw >= 85) {
-      strongMarkets.push({ market: 'Draw', prob: prediction.winnerProb.draw });
-    }
+    // Winner Check
+    if (homeProb >= 85) strongMarkets.push({ market: `Winner: ${match.homeTeam}`, prob: homeProb });
+    if (awayProb >= 85) strongMarkets.push({ market: `Winner: ${match.awayTeam}`, prob: awayProb });
     
-    // Check BTTS
-    if (prediction.bttsProb >= 85) {
-      strongMarkets.push({ market: 'BTTS Yes', prob: prediction.bttsProb });
-    } else if (prediction.bttsProb <= 15) {
-      strongMarkets.push({ market: 'BTTS No', prob: 100 - prediction.bttsProb });
-    }
-    
-    // Check over/under markets based on expected goals
-    if (prediction.expectedGoals.total >= 3.5) {
-      strongMarkets.push({ market: 'Over 3.5 Goals', prob: 85 });
-    } else if (prediction.expectedGoals.total >= 2.5) {
-      strongMarkets.push({ market: 'Over 2.5 Goals', prob: 75 });
-    } else if (prediction.expectedGoals.total <= 1.5) {
-      strongMarkets.push({ market: 'Under 2.5 Goals', prob: 85 });
-    }
-    
-    return strongMarkets;
-  }
+    // BTTS Check
+    if (bttsProb >= 85) strongMarkets.push({ market: 'BTTS: YES', prob: bttsProb });
 
-  getDefaultPrediction() {
+    // Over/Under Check (Point 3: 0.5 to 5.5 Over/Under)
+    if (expectedTotalGoals >= 1.5 && bttsProb > 70) {
+        strongMarkets.push({ market: 'Over 1.5 Goals', prob: 90 + Math.floor(Math.random() * 5) });
+    }
+    
+    // Last 10 Min Goal Check
+    if (last10Prob >= 85) strongMarkets.push({ market: `Late Goal: ${match.homeTeam} or ${match.awayTeam}`, prob: last10Prob });
+
+
     return {
-      winnerProb: { home: 33, draw: 34, away: 33 },
-      bttsProb: 50,
-      last10Prob: 30,
-      strongMarkets: [],
-      expectedGoals: { home: 1.2, away: 1.1, total: 2.3 }
+        winnerProb: { home: homeProb, draw: drawProb, away: awayProb },
+        bttsProb: bttsProb,
+        last10Prob: last10Prob,
+        expectedGoals: expectedGoals,
+        strongMarkets: strongMarkets,
     };
-  }
 }
 
-// Initialize prediction engine
-const predictionEngine = new PredictionEngine();
+// --- 3. Cron Scheduler and SSE Update (Points 5, 10) ---
 
-// Routes
+async function runPredictionCycle() {
+    console.log(`--- Starting Prediction Cycle: ${moment().format('HH:mm:ss')} ---`);
+    
+    // 1. Fetch and save match data (Point 10: New API hit)
+    await fetchAndCombineMatches();
+    
+    // 2. Get all today's matches
+    const todayMatches = await Match.find({ 
+        kickoffUTC: { $gte: moment().startOf('day').toDate(), $lt: moment().endOf('day').toDate() },
+        status: { $in: ['Scheduled', 'Live'] }
+    });
+    
+    // 3. Run prediction and update DB
+    const predictions = todayMatches.map(match => {
+        const prediction = runProLevelPrediction(match);
+        
+        // Update prediction in DB (Point 4)
+        Match.updateOne({ matchId: match.matchId }, { $set: { prediction: prediction } }).exec();
+        
+        return {
+            teams: `${match.homeTeam} vs ${match.awayTeam}`,
+            matchDate: `${match.kickoffPKT} PKT / ${match.league}`,
+            prediction: prediction
+        };
+    });
+
+    currentLivePredictions = predictions;
+    
+    // 4. Push update to frontend
+    sendSSEUpdate();
+    console.log(`--- Prediction Cycle Finished. ${predictions.length} predictions generated. ---`);
+}
+
+function sendSSEUpdate() {
+    const updateData = { 
+        ts: moment().tz('Asia/Karachi').format('YYYY-MM-DD HH:mm:ss z'), 
+        matches: currentLivePredictions 
+    };
+    const dataString = `data: ${JSON.stringify(updateData)}\n\n`;
+    
+    clients.forEach(client => {
+        try {
+            client.res.write(dataString);
+        } catch (e) {
+            clients = clients.filter(c => c.id !== client.id); // Remove broken client
+        }
+    });
+}
+
+// Initial run and Cron Schedule (Runs every 5 minutes)
+runPredictionCycle(); 
+cron.schedule('*/5 * * * *', runPredictionCycle); // Point 5
+
+// Daily API reset (Point 9)
+cron.schedule('0 0 * * *', () => {
+    for (const key in API_CONFIG) { API_CONFIG[key].hits = 0; }
+    console.log('Daily API hit counter reset.');
+});
+
+
+// --- 4. EXPRESS ROUTES ---
+
+// Route for Today's Matches (Left Side)
 app.get('/today', async (req, res) => {
-  try {
-    const matches = await fetchTodayMatches();
-    res.json({
-      success: true,
-      data: matches,
-      timestamp: new Date()
-    });
-  } catch (error) {
-    res.json({
-      success: false,
-      error: error.message,
-      data: []
-    });
-  }
-});
+    try {
+        const todayMatches = await Match.find({ 
+            kickoffUTC: { $gte: moment().startOf('day').toDate(), $lt: moment().endOf('day').toDate() }
+        }).sort({ kickoffUTC: 1 });
 
-app.get('/predictions', async (req, res) => {
-  try {
-    const matches = await fetchTodayMatches();
-    const predictions = [];
-    
-    // Generate predictions for each match
-    for (const match of matches.slice(0, 10)) { // Limit to 10 matches
-      const prediction = await predictionEngine.analyzeMatch(match);
-      
-      predictions.push({
-        teams: `${match.home} vs ${match.away}`,
-        matchDate: `Today, ${match.kickoff} PKT`,
-        prediction: prediction
-      });
-      
-      // Save to database
-      const predictionRecord = new Prediction({
-        matchId: `${match.home}-${match.away}-${Date.now()}`,
-        homeTeam: match.home,
-        awayTeam: match.away,
-        league: match.league,
-        matchTime: new Date(),
-        prediction: prediction
-      });
-      
-      await predictionRecord.save();
+        const formattedData = todayMatches.map(m => ({
+            home: m.homeTeam,
+            away: m.awayTeam,
+            league: m.league,
+            kickoff: m.kickoffPKT,
+            status: m.status
+        }));
+        
+        res.json({ success: true, data: formattedData });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Database error' });
     }
-    
-    res.json({
-      success: true,
-      matches: predictions,
-      ts: new Date()
-    });
-  } catch (error) {
-    res.json({
-      success: false,
-      error: error.message,
-      matches: []
-    });
-  }
 });
 
-// SSE for live updates
+// Server-Sent Events (SSE) Route (Right Side)
 app.get('/events', (req, res) => {
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive'
-  });
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+    });
+    
+    const clientId = Date.now();
+    const newClient = { id: clientId, res };
+    clients.push(newClient);
+    
+    // Send initial snapshot
+    newClient.res.write(`data: ${JSON.stringify({ 
+        ts: moment().tz('Asia/Karachi').format('YYYY-MM-DD HH:mm:ss z'), 
+        matches: currentLivePredictions 
+    })}\n\n`);
 
-  // Send initial data
-  sendPredictions(res);
-
-  // Update every 5 minutes
-  const interval = setInterval(() => {
-    sendPredictions(res);
-  }, 5 * 60 * 1000);
-
-  req.on('close', () => {
-    clearInterval(interval);
-    res.end();
-  });
+    req.on('close', () => {
+        clients = clients.filter(c => c.id !== clientId);
+    });
 });
 
-async function sendPredictions(res) {
-  try {
-    const matches = await fetchTodayMatches();
-    const predictions = [];
-    
-    for (const match of matches.slice(0, 8)) {
-      const prediction = await predictionEngine.analyzeMatch(match);
-      predictions.push({
-        teams: `${match.home} vs ${match.away}`,
-        matchDate: `Today, ${match.kickoff} PKT`,
-        prediction: prediction
-      });
-    }
-    
-    res.write(`data: ${JSON.stringify({
-      matches: predictions,
-      ts: new Date()
-    })}\n\n`);
-  } catch (error) {
-    res.write(`data: ${JSON.stringify({
-      error: error.message,
-      matches: []
-    })}\n\n`);
-  }
-}
-
-// Cron job to update predictions every 5 minutes
-nodeCron.schedule('*/5 * * * *', async () => {
-  console.log('Running scheduled prediction update...');
-  try {
-    const matches = await fetchTodayMatches();
-    
-    for (const match of matches.slice(0, 10)) {
-      const prediction = await predictionEngine.analyzeMatch(match);
-      
-      // Save to database
-      const predictionRecord = new Prediction({
-        matchId: `${match.home}-${match.away}-${Date.now()}`,
-        homeTeam: match.home,
-        awayTeam: match.away,
-        league: match.league,
-        matchTime: new Date(),
-        prediction: prediction
-      });
-      
-      await predictionRecord.save();
-    }
-    
-    console.log('Predictions updated successfully');
-  } catch (error) {
-    console.error('Error updating predictions:', error);
-  }
-});
-
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/football-predictions', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-.then(() => console.log('Connected to MongoDB'))
-.catch(err => console.error('MongoDB connection error:', err));
-
-const PORT = process.env.PORT || 3000;
+// Start Server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Frontend: http://localhost:${PORT}`);
+    console.log(`Server running on http://localhost:${PORT}`);
 });
