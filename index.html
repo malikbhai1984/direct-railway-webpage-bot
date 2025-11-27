@@ -1,3 +1,6 @@
+
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,19 +8,19 @@
 <title>Live Football Predictions (PKT)</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <style>
-body{ background:#0b0b0b; color:#fff; font-family:Arial, sans-serif; margin:0; padding:18px; }
-header{ text-align:center; margin-bottom:12px }
-.layout{ display:flex; gap:18px; align-items:flex-start; max-width:1200px; margin:0 auto; }
-.left{ width:38%; background:#111; padding:12px; border-radius:10px; border:1px solid #222; }
-.right{ width:62%; background:#0e0f10; padding:12px; border-radius:10px; border:2px solid #00ff90; position:relative; }
-h2{ margin:6px 0 12px 0; color:#00ff90 }
-.match{ padding:8px; border-bottom:1px solid #222; }
-.predCard{ padding:10px; margin-bottom:10px; border-radius:8px; background:#151515; transition:all 0.3s; }
-.strong{ background:#073; color:#fff; }
-.small{ font-size:12px; color:#bbb }
-.meta{ font-size:13px; color:#9cc; margin-bottom:8px }
-.toast{ position:fixed; top:10px; right:10px; background:#00ff90; color:#000; padding:10px 16px; border-radius:6px; box-shadow:0 0 8px #0f0; opacity:0.9; margin-bottom:6px; z-index:999; }
-@media(max-width:900px){ .layout{ flex-direction:column } .left,.right{ width:100% } }
+body{background:#0b0b0b;color:#fff;font-family:Arial, sans-serif;margin:0;padding:18px;}
+header{text-align:center;margin-bottom:12px}
+.layout{display:flex;gap:18px;align-items:flex-start;max-width:1200px;margin:0 auto;}
+.left{width:38%;background:#111;padding:12px;border-radius:10px;border:1px solid #222;}
+.right{width:62%;background:#0e0f10;padding:12px;border-radius:10px;border:2px solid #00ff90;position:relative;}
+h2{margin:6px 0 12px 0;color:#00ff90}
+.match{padding:8px;border-bottom:1px solid #222;}
+.predCard{padding:10px;margin-bottom:10px;border-radius:8px;background:#151515;transition:all 0.3s;}
+.strong{background:#073;color:#fff;}
+.small{font-size:12px;color:#bbb;}
+.meta{font-size:13px;color:#9cc;margin-bottom:8px;}
+.toast{position:fixed;top:10px;right:10px;background:#00ff90;color:#000;padding:10px 16px;border-radius:6px;box-shadow:0 0 8px #0f0;opacity:0.9;margin-bottom:6px;z-index:999;}
+@media(max-width:900px){.layout{flex-direction:column}.left,.right{width:100%}}
 </style>
 </head>
 <body>
@@ -40,19 +43,16 @@ h2{ margin:6px 0 12px 0; color:#00ff90 }
 </div>
 
 <script>
-// ----------------- LEFT SIDE -----------------
 async function loadToday(){
   try{
     const r = await fetch('/today-matches');
     const j = await r.json();
     const box = document.getElementById('matchList');
-    if(!j.length){ box.innerHTML = '<div class="small">No matches today.</div>'; return; }
+    if(!j.length){ box.innerHTML='<div class="small">No matches today.</div>'; return; }
     let html='';
     j.forEach(m=>{
-      html += `<div class="match">
-        <strong>${m.teams.home.name} vs ${m.teams.away.name}</strong>
-        <div class="small">${m.league.name} • ${new Date(m.fixture.date).toLocaleString()} PKT • ${m.fixture.status.short}</div>
-      </div>`;
+      html+=`<div class="match"><strong>${m.teams.home.name} vs ${m.teams.away.name}</strong>
+      <div class="small">${m.league.name} • ${new Date(m.fixture.date).toLocaleString()} PKT • ${m.fixture.status.short}</div></div>`;
     });
     box.innerHTML = html;
   }catch(e){ console.error(e); document.getElementById('matchList').innerHTML='Fetch error'; }
@@ -60,28 +60,24 @@ async function loadToday(){
 loadToday();
 setInterval(loadToday,7*60*1000);
 
-// ----------------- RIGHT SIDE SSE -----------------
 const predBox = document.getElementById('predList');
 const sse = new EventSource('/events');
-
 sse.onopen = ()=>{ predBox.innerHTML='<div class="small" style="color:#0f0">Connected — waiting for first snapshot...</div>'; };
 sse.onerror = ()=>{ predBox.innerHTML='<div class="small" style="color:#f33">Connection lost. Check backend.</div>'; };
 
 function showToast(message){
   const t = document.createElement('div'); t.className='toast'; t.innerText=message;
-  document.body.appendChild(t);
-  setTimeout(()=>t.remove(),5000);
+  document.body.appendChild(t); setTimeout(()=>t.remove(),5000);
 }
 
-sse.onmessage = (e)=>{
+sse.onmessage=(e)=>{
   try{
     const data = JSON.parse(e.data);
     if(!data.matches){ predBox.innerHTML='No data'; return; }
-
-    let html = `<div class="meta">Updated: ${new Date(data.ts).toLocaleString()}</div>`;
+    let html=`<div class="meta">Updated: ${new Date(data.ts).toLocaleString()}</div>`;
     data.matches.forEach(item=>{
       const strong = (item.strongMarkets && item.strongMarkets.length>0);
-      html += `<div class="predCard ${strong?'strong':''}">
+      html+=`<div class="predCard ${strong?'strong':''}">
         <div><strong>${item.home} vs ${item.away}</strong></div>
         <div>Winner: Home ${item.winnerProb.home}% • Draw ${item.winnerProb.draw}% • Away ${item.winnerProb.away}%</div>
         <div>BTTS: ${item.bttsProb}% • Last10: ${item.last10Prob}%</div>
@@ -91,7 +87,6 @@ sse.onmessage = (e)=>{
       if(strong) showToast(`New strong prediction: ${item.home} vs ${item.away}`);
     });
     predBox.innerHTML = html;
-
   }catch(err){ console.error(err); predBox.innerHTML='<div class="small" style="color:#f33">Parse error</div>'; }
 };
 </script>
