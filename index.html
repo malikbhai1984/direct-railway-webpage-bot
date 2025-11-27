@@ -26,7 +26,7 @@ h2{margin:6px 0 12px 0;color:#00ff90}
 <body>
 <header>
 <h1>⚽ Live Auto Predictions (PKT)</h1>
-<div class="small">Auto updates every 5–7 minutes. No reload required.</div>
+<div class="small">Auto updates every 5 minutes. No reload required.</div>
 <div class="small" style="color:#0f0">Welcome! Auto Prediction Active ✅</div>
 </header>
 
@@ -58,7 +58,7 @@ async function loadToday(){
   }catch(e){ console.error(e); document.getElementById('matchList').innerHTML='Fetch error'; }
 }
 loadToday();
-setInterval(loadToday,7*60*1000);
+setInterval(loadToday,5*60*1000);
 
 const predBox = document.getElementById('predList');
 const sse = new EventSource('/events');
