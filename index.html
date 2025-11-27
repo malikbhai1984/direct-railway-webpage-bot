@@ -1,97 +1,51 @@
-
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Live Football Predictions</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <style>
-    body { font-family: system-ui, Arial; max-width:900px; margin:18px auto; padding:12px; }
-    h1 { margin-bottom:6px; }
-    #msgs { border:1px solid #ddd; padding:12px; height:420px; overflow:auto; background:#fafafa; }
-    .msg { padding:8px; border-bottom:1px solid #eee; }
-    .meta { font-size:12px; color:#666; margin-bottom:6px; }
-    #form { margin-top:12px; display:flex; gap:8px; }
-    input, textarea { width:100%; padding:8px; box-sizing:border-box; }
-    button { padding:8px 12px; }
-    .sender { font-weight:600; margin-right:6px; }
-  </style>
+<meta charset="UTF-8">
+<title>Football Auto Prediction</title>
+<style>
+  body {
+    background: #111;
+    color: white;
+    font-family: Arial;
+    text-align: center;
+    padding: 30px;
+  }
+
+  #predictionBox {
+    background: #222;
+    border: 2px solid #00ff90;
+    border-radius: 10px;
+    padding: 20px;
+    margin: 20px auto;
+    font-size: 22px;
+    width: 90%;
+    max-width: 600px;
+  }
+</style>
 </head>
 <body>
-  <h1>⚽ Live Football Predictions</h1>
-  <p>Auto updates every 5 minutes. Last messages appear below in real-time.</p>
 
-  <div id="msgs"></div>
+<h1>⚽ Live Football Predictions</h1>
 
-  <form id="form">
-    <input id="sender" placeholder="Your name (optional)" />
-    <input id="text" placeholder="Type message to broadcast (optional)" />
-    <button type="submit">Send</button>
-  </form>
+<!-- THIS IS YOUR LIVE BOX -->
+<div id="predictionBox">Loading prediction...</div>
 
-  <script>
-    const box = document.getElementById('msgs');
-    const form = document.getElementById('form');
-    const senderInput = document.getElementById('sender');
-    const textInput = document.getElementById('text');
-
-    function addMsg(m) {
-      const el = document.createElement('div');
-      el.className = 'msg';
-      const prettyTime = new Date(m.ts).toLocaleString();
-      el.innerHTML = `<div class="meta"><span class="sender">${escapeHtml(m.sender)}</span><span>${prettyTime}</span></div>
-                      <div>${escapeHtml(m.text)}</div>`;
-      box.appendChild(el);
-      box.scrollTop = box.scrollHeight;
+<script>
+  async function loadPrediction() {
+    try {
+      const res = await fetch("/prediction");
+      const data = await res.json();
+      document.getElementById("predictionBox").innerHTML = data.prediction;
+    } catch (e) {
+      document.getElementById("predictionBox").innerHTML =
+        "Error loading prediction...";
     }
+  }
 
-    function escapeHtml(s) {
-      if (!s) return '';
-      return String(s)
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    }
+  loadPrediction();              // Page open → load
+  setInterval(loadPrediction, 300000); // Every 5 minutes auto update
+</script>
 
-    // load last messages once
-    fetch('/prediction').then(r => r.json()).then(j => {
-      if (j && j.ok && j.last) {
-        j.last.reverse().forEach(addMsg); // prediction returns reversed last; reverse to show oldest first
-      }
-    }).catch(()=>{ /* ignore */ });
-
-    // SSE
-    const sse = new EventSource('/events');
-    sse.onmessage = e => {
-      try {
-        const m = JSON.parse(e.data);
-        addMsg(m);
-      } catch (err) {
-        console.error('SSE parse err', err);
-      }
-    };
-    sse.onerror = err => console.warn('SSE error', err);
-
-    // manual send
-    form.addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      const text = textInput.value.trim();
-      if (!text) return alert('Message is empty');
-      const payload = { sender: senderInput.value || 'WEB-USER', text };
-      try {
-        const res = await fetch('/message', {
-          method: 'POST',
-          headers: { 'Content-Type':'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const j = await res.json();
-        if (!j.ok) alert('Send error: ' + (j.error || 'unknown'));
-        else {
-          textInput.value = '';
-        }
-      } catch (err) {
-        alert('Network error: ' + err.message);
-      }
-    });
-  </script>
 </body>
 </html>
