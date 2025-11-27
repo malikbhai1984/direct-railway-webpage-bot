@@ -3,54 +3,111 @@
 <head>
 <meta charset="UTF-8">
 <title>Football Auto Prediction</title>
+
 <style>
   body {
     background: #111;
-    color: white;
+    color: #fff;
     font-family: Arial;
     text-align: center;
-    padding: 30px;
+    padding: 20px;
+  }
+
+  h1 {
+    color: #00ff90;
+    margin-bottom: 20px;
   }
 
   #predictionBox {
-    background: #222;
+    background: #1b1b1b;
     border: 2px solid #00ff90;
-    border-radius: 10px;
-    padding: 20px;
-    margin: 20px auto;
-    font-size: 22px;
-    width: 90%;
-    max-width: 600px;
+    border-radius: 12px;
+    padding: 18px;
+    margin: 0 auto;
+    font-size: 18px;
+    width: 95%;
+    max-width: 900px;
+    min-height: 100px;
+    text-align: left;
+  }
+
+  .matchCard {
+    padding: 10px;
+    margin-top: 10px;
+    background: #222;
+    border-radius: 8px;
+  }
+
+  .strong {
+    background: #073;
   }
 </style>
+
 </head>
 <body>
 
 <h1>⚽ Live Football Predictions</h1>
 
-<!-- THIS IS YOUR LIVE BOX -->
-<div id="predictionBox">Loading prediction...</div>
+<!-- ONLY ONE PREDICTION BOX -->
+<div id="predictionBox">Connecting to prediction server...</div>
 
-<div id="predictionBox" style="max-width:900px;margin:20px auto;padding:12px;background:#0d0d0d;color:#fff;border-radius:8px;"></div>
 <script>
+  console.log("📡 Connecting to SSE event stream...");
   const sse = new EventSource('/events');
+
+  sse.onopen = () => {
+    document.getElementById("predictionBox").innerHTML = "🔄 Loading live predictions...";
+  };
+
+  sse.onerror = () => {
+    document.getElementById("predictionBox").innerHTML =
+      "<span style='color:#f33'>❌ Connection Lost — Backend Not Responding</span>";
+  };
+
   sse.onmessage = (e) => {
-    try{
+    try {
       const data = JSON.parse(e.data);
-      const box = document.getElementById('predictionBox');
-      if(!box) return;
-      let html = `<div>Updated: ${new Date(data.ts).toLocaleString()}</div>`;
-      html += `<div>Matches: ${data.matchesCount}</div>`;
-      data.matches.forEach(m=>{
-        const strong = (m.confidence >= 85 || (m.strongMarkets && m.strongMarkets.length));
-        html += `<div style="padding:8px;margin-top:8px;border-radius:6px;${strong?'background:#083;':''}">`;
-        html += `<b>${m.home} vs ${m.away}</b> (${m.kickoffLocal})<br>`;
-        html += `Confidence: ${m.confidence}% • BTTS: ${m.bttsProb}% • Last10: ${m.last10Prob}%`;
-        if(m.strongMarkets && m.strongMarkets.length) html += `<div style="color:#0f0">Strong: ${m.strongMarkets.map(s=>s.market+'('+s.prob+'%)').join(', ')}</div>`;
+      const box = document.getElementById("predictionBox");
+
+      let html = `
+        <div><b>Updated:</b> ${new Date(data.ts).toLocaleString()}</div>
+        <div><b>Total Matches:</b> ${data.matchesCount}</div>
+        <hr style='border-color:#00ff90'>
+      `;
+
+      if (data.matches.length === 0) {
+        html += `<div>No matches found for today.</div>`;
+      }
+
+      data.matches.forEach(m => {
+        const isStrong = (m.confidence >= 85 || (m.strongMarkets && m.strongMarkets.length));
+        html += `
+          <div class="matchCard ${isStrong ? 'strong' : ''}">
+            <b>${m.home} vs ${m.away}</b>  
+            <br>Kickoff: ${m.kickoffLocal}
+            <br>Confidence: <b>${m.confidence}%</b>
+            <br>BTTS Chance: ${m.bttsProb}%
+            <br>Last 10 min Goal Chance: ${m.last10Prob}%
+        `;
+
+        if (m.strongMarkets && m.strongMarkets.length > 0) {
+          html += `
+            <div style="margin-top:6px;color:#0f0"><b>Strong Markets:</b><br>
+              ${m.strongMarkets.map(s => s.market + " (" + s.prob + "%)").join(", ")}
+            </div>
+          `;
+        }
+
         html += `</div>`;
       });
+
       box.innerHTML = html;
-    }catch(err){ console.error(err); }
+
+    } catch (err) {
+      console.error("Front-end SSE Parse Error:", err);
+      document.getElementById("predictionBox").innerHTML =
+        "<span style='color:#f33'>❌ Front-End Error Parsing Prediction Data</span>";
+    }
   };
 </script>
 
