@@ -6,7 +6,8 @@ import moment from "moment-timezone";
 import cron from "node-cron";
 import cors from "cors";
 import path from "path";
-import { fileURLToPath } from 'url';
+import { fileURLToPath } from "url";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -17,7 +18,7 @@ const PORT = process.env.PORT || 8080;
 
 // ----------------- MONGODB CONNECT -----------------
 mongoose.connect(
-  "mongodb://mongo:oEClLGHGAdoIpZMRylyfUXPkXVgKojZq@trolley.proxy.rlwy.net:40178",
+  process.env.MONGO_URI || "mongodb://mongo:oEClLGHGAdoIpZMRylyfUXPkXVgKojZq@trolley.proxy.rlwy.net:40178",
   {
     useNewUrlParser: true,
     useUnifiedTopology: true,
@@ -41,24 +42,25 @@ const PredictionSchema = new mongoose.Schema({
 const Prediction = mongoose.model("Prediction", PredictionSchema);
 
 // ----------------- API KEYS -----------------
-const API_FOOTBALL_KEY = process.env.API_FOOTBALL || "YOUR_KEY_HERE";
+const API_FOOTBALL_KEY = process.env.API_FOOTBALL_KEY;
 
-// TOP LEAGUES + WORLD CUP QUALIFIER
+// ----------------- TOP LEAGUES -----------------
 const TOP_LEAGUES = [2, 3, 39, 61, 78, 135, 140, 141, 848, 556];
 const WORLD_CUP_QUALIFIER = 1;
 
-// ----------------------------------------------------
-// 🔍 FUNCTION: Fetch Today Matches
-// ----------------------------------------------------
+// ----------------- HELPER FUNCTIONS -----------------
 async function getTodayMatches() {
   try {
     const today = moment().tz("Asia/Karachi").format("YYYY-MM-DD");
     const res = await axios.get("https://v3.football.api-sports.io/fixtures", {
-      headers: { "x-apisports-key": API_FOOTBALL_KEY, "Accept-Encoding": "gzip,deflate,compress" },
+      headers: { 
+        "x-apisports-key": API_FOOTBALL_KEY,
+        "Accept-Encoding": "gzip,deflate,compress"
+      },
       params: { date: today }
     });
 
-    let matches = res.data.response;
+    let matches = res.data.response || [];
     matches = matches.filter(m =>
       TOP_LEAGUES.includes(m.league.id) || m.league.id === WORLD_CUP_QUALIFIER
     );
@@ -70,13 +72,9 @@ async function getTodayMatches() {
   }
 }
 
-// ----------------------------------------------------
-// 🔮 FUNCTION: ML/AI Prediction Engine
-// ----------------------------------------------------
 function poissonGoal(mu) {
   const L = Math.exp(-mu);
-  let k = 0;
-  let p = 1;
+  let k = 0, p = 1;
   while (p > L) {
     k++;
     p *= Math.random();
@@ -84,12 +82,12 @@ function poissonGoal(mu) {
   return k - 1;
 }
 
+// ----------------- ML/AI Prediction Engine -----------------
 async function makePrediction(match) {
   try {
     const home = match.teams.home.name;
     const away = match.teams.away.name;
 
-    // --- MOCK ML FEATURES ---
     const xG_home = parseFloat((Math.random() * 2).toFixed(2));
     const xG_away = parseFloat((Math.random() * 2).toFixed(2));
 
@@ -101,7 +99,6 @@ async function makePrediction(match) {
     let prediction = "";
     let confidence = 0;
 
-    // --- STRONG MARKET LOGIC ---
     if (total_goals >= 2.5) {
       prediction = "Over 2.5 Goals";
       confidence = 88 + Math.floor(Math.random() * 7);
@@ -128,9 +125,7 @@ async function makePrediction(match) {
   }
 }
 
-// ----------------------------------------------------
-// ⏳ CRON JOB (EVERY 5 MINUTES)
-// ----------------------------------------------------
+// ----------------- CRON JOB (EVERY 5 MINUTES) -----------------
 cron.schedule("*/5 * * * *", async () => {
   console.log("🔁 Auto Prediction Check Running...");
 
@@ -143,9 +138,7 @@ cron.schedule("*/5 * * * *", async () => {
   }
 });
 
-// ----------------------------------------------------
-// 📡 SSE: LIVE PREDICTIONS STREAM
-// ----------------------------------------------------
+// ----------------- SSE LIVE PREDICTIONS -----------------
 app.get("/events", async (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -181,9 +174,7 @@ app.get("/events", async (req, res) => {
   });
 });
 
-// ----------------------------------------------------
-// API Routes
-// ----------------------------------------------------
+// ----------------- API ROUTES -----------------
 app.get("/prediction", async (req, res) => {
   const preds = await Prediction.find().sort({ created_at: -1 }).limit(20);
   res.json(preds);
@@ -194,17 +185,13 @@ app.get("/today-matches", async (req, res) => {
   res.json(matches);
 });
 
-// ----------------------------------------------------
-// STATIC FRONT-END (index.html)
-// ----------------------------------------------------
+// ----------------- STATIC FRONT-END -----------------
 app.use(express.static(__dirname));
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-// ----------------------------------------------------
-// START SERVER
-// ----------------------------------------------------
+// ----------------- START SERVER -----------------
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
