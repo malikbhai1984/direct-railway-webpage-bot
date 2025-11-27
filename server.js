@@ -2,6 +2,25 @@ const express = require("express");
 const axios = require("axios");
 const path = require("path");
 
+
+//mongodb connection code
+const mongoose = require("mongoose");
+
+// Railway internal MongoDB URL
+const MONGO_URL = "mongodb://mongo:oEClLGHGAdoIpZMRylyfUXPkXVgKojZq@mongodb.railway.internal:27017";
+
+// MongoDB Connect
+mongoose.connect(MONGO_URL, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+})
+.then(() => console.log("✔ MongoDB Connected Successfully!"))
+.catch(err => console.log("❌ MongoDB Connection Error:", err));
+
+
+
+
+
 const app = express();
 const PORT = process.env.PORT || 8080;
 
