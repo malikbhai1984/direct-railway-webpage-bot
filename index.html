@@ -31,20 +31,27 @@
 <!-- THIS IS YOUR LIVE BOX -->
 <div id="predictionBox">Loading prediction...</div>
 
+<div id="predictionBox" style="max-width:900px;margin:20px auto;padding:12px;background:#0d0d0d;color:#fff;border-radius:8px;"></div>
 <script>
-  async function loadPrediction() {
-    try {
-      const res = await fetch("/prediction");
-      const data = await res.json();
-      document.getElementById("predictionBox").innerHTML = data.prediction;
-    } catch (e) {
-      document.getElementById("predictionBox").innerHTML =
-        "Error loading prediction...";
-    }
-  }
-
-  loadPrediction();              // Page open → load
-  setInterval(loadPrediction, 300000); // Every 5 minutes auto update
+  const sse = new EventSource('/events');
+  sse.onmessage = (e) => {
+    try{
+      const data = JSON.parse(e.data);
+      const box = document.getElementById('predictionBox');
+      if(!box) return;
+      let html = `<div>Updated: ${new Date(data.ts).toLocaleString()}</div>`;
+      html += `<div>Matches: ${data.matchesCount}</div>`;
+      data.matches.forEach(m=>{
+        const strong = (m.confidence >= 85 || (m.strongMarkets && m.strongMarkets.length));
+        html += `<div style="padding:8px;margin-top:8px;border-radius:6px;${strong?'background:#083;':''}">`;
+        html += `<b>${m.home} vs ${m.away}</b> (${m.kickoffLocal})<br>`;
+        html += `Confidence: ${m.confidence}% • BTTS: ${m.bttsProb}% • Last10: ${m.last10Prob}%`;
+        if(m.strongMarkets && m.strongMarkets.length) html += `<div style="color:#0f0">Strong: ${m.strongMarkets.map(s=>s.market+'('+s.prob+'%)').join(', ')}</div>`;
+        html += `</div>`;
+      });
+      box.innerHTML = html;
+    }catch(err){ console.error(err); }
+  };
 </script>
 
 </body>
