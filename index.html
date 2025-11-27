@@ -1,115 +1,97 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Football Auto Prediction</title>
-
+<meta charset="utf-8" />
+<title>Live Football Predictions (PKT)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <style>
-  body {
-    background: #111;
-    color: #fff;
-    font-family: Arial;
-    text-align: center;
-    padding: 20px;
-  }
-
-  h1 {
-    color: #00ff90;
-    margin-bottom: 20px;
-  }
-
-  #predictionBox {
-    background: #1b1b1b;
-    border: 2px solid #00ff90;
-    border-radius: 12px;
-    padding: 18px;
-    margin: 0 auto;
-    font-size: 18px;
-    width: 95%;
-    max-width: 900px;
-    min-height: 100px;
-    text-align: left;
-  }
-
-  .matchCard {
-    padding: 10px;
-    margin-top: 10px;
-    background: #222;
-    border-radius: 8px;
-  }
-
-  .strong {
-    background: #073;
-  }
+  body{ background:#0b0b0b; color:#fff; font-family:Arial, sans-serif; margin:0; padding:18px; }
+  header{ text-align:center; margin-bottom:12px }
+  .layout{ display:flex; gap:18px; align-items:flex-start; max-width:1200px; margin:0 auto; }
+  .left{ width:38%; background:#111; padding:12px; border-radius:10px; border:1px solid #222; }
+  .right{ width:62%; background:#0e0f10; padding:12px; border-radius:10px; border:2px solid #00ff90; }
+  h2{ margin:6px 0 12px 0; color:#00ff90 }
+  .match{ padding:8px; border-bottom:1px solid #222; }
+  .predCard{ padding:10px; margin-bottom:10px; border-radius:8px; background:#151515; }
+  .strong{ background:#073; color:#fff; }
+  .small{ font-size:12px; color:#bbb }
+  .meta{ font-size:13px; color:#9cc; margin-bottom:8px }
+  @media(max-width:900px){ .layout{ flex-direction:column } .left,.right{ width:100% } }
 </style>
-
 </head>
 <body>
+<header>
+  <h1>⚽ Live Auto Predictions (PKT)</h1>
+  <div class="small">Auto updates every 5–7 minutes. No reload required.</div>
+</header>
 
-<h1>⚽ Live Football Predictions</h1>
+<div class="layout">
+  <div class="left">
+    <h2>📅 Today Matches (PKT)</h2>
+    <div id="matchList">Loading...</div>
+  </div>
 
-<!-- ONLY ONE PREDICTION BOX -->
-<div id="predictionBox">Connecting to prediction server...</div>
+  <div class="right">
+    <h2>🔮 Live Predictions</h2>
+    <div id="predList">Waiting for updates...</div>
+  </div>
+</div>
 
 <script>
-  console.log("📡 Connecting to SSE event stream...");
+  // load left side (today matches)
+  async function loadToday(){
+    try{
+      const r = await fetch('/today');
+      const j = await r.json();
+      const box = document.getElementById('matchList');
+      if(!j.success){ box.innerHTML = 'Error: '+(j.error||''); return; }
+      if(j.data.length===0){ box.innerHTML = '<div class="small">No matches for today (top leagues).</div>'; return; }
+      let html='';
+      j.data.forEach(m=>{
+        html += `<div class="match"><strong>${m.home} vs ${m.away}</strong><div class="small">${m.league} • ${m.kickoff} PKT • ${m.status}</div></div>`;
+      });
+      box.innerHTML = html;
+    }catch(e){ document.getElementById('matchList').innerHTML = 'Fetch error'; }
+  }
+  loadToday();
+
+  // SSE for live predictions (right side)
+  const predBox = document.getElementById('predList');
   const sse = new EventSource('/events');
 
-  sse.onopen = () => {
-    document.getElementById("predictionBox").innerHTML = "🔄 Loading live predictions...";
-  };
-
-  sse.onerror = () => {
-    document.getElementById("predictionBox").innerHTML =
-      "<span style='color:#f33'>❌ Connection Lost — Backend Not Responding</span>";
-  };
+  sse.onopen = ()=> { predBox.innerHTML = '<div class="small">Connected — waiting for first snapshot...</div>'; };
+  sse.onerror = ()=> { predBox.innerHTML = '<div class="small" style="color:#f33">Connection lost. Check backend.</div>'; };
 
   sse.onmessage = (e) => {
-    try {
+    try{
       const data = JSON.parse(e.data);
-      const box = document.getElementById("predictionBox");
-
-      let html = `
-        <div><b>Updated:</b> ${new Date(data.ts).toLocaleString()}</div>
-        <div><b>Total Matches:</b> ${data.matchesCount}</div>
-        <hr style='border-color:#00ff90'>
-      `;
-
-      if (data.matches.length === 0) {
-        html += `<div>No matches found for today.</div>`;
-      }
-
-      data.matches.forEach(m => {
-        const isStrong = (m.confidence >= 85 || (m.strongMarkets && m.strongMarkets.length));
-        html += `
-          <div class="matchCard ${isStrong ? 'strong' : ''}">
-            <b>${m.home} vs ${m.away}</b>  
-            <br>Kickoff: ${m.kickoffLocal}
-            <br>Confidence: <b>${m.confidence}%</b>
-            <br>BTTS Chance: ${m.bttsProb}%
-            <br>Last 10 min Goal Chance: ${m.last10Prob}%
-        `;
-
-        if (m.strongMarkets && m.strongMarkets.length > 0) {
-          html += `
-            <div style="margin-top:6px;color:#0f0"><b>Strong Markets:</b><br>
-              ${m.strongMarkets.map(s => s.market + " (" + s.prob + "%)").join(", ")}
-            </div>
-          `;
+      // data.matches : array of objects { teams, matchDate, prediction }
+      if(!data || !data.matches){ predBox.innerHTML = 'No data'; return; }
+      let html = `<div class="meta">Updated: ${new Date(data.ts).toLocaleString()}</div>`;
+      data.matches.forEach(item=>{
+        const p = item.prediction;
+        const strong = (p && ( (p.bttsProb && p.bttsProb>=85) || (p.winnerProb && (p.winnerProb.home>=85 || p.winnerProb.away>=85 || p.winnerProb.draw>=85)) || (p.strongMarkets && p.strongMarkets.length>0) ));
+        html += `<div class="predCard ${strong? 'strong':''}">`;
+        html += `<div><strong>${item.teams}</strong> <span class="small">(${item.matchDate})</span></div>`;
+        if(p){
+          html += `<div>Winner: Home ${p.winnerProb.home}% • Draw ${p.winnerProb.draw}% • Away ${p.winnerProb.away}%</div>`;
+          html += `<div>BTTS: ${p.bttsProb}% • Last10: ${p.last10Prob}%</div>`;
+          if(p.strongMarkets && p.strongMarkets.length) html += `<div class="small">Strong markets: ${p.strongMarkets.map(s=>s.market+'('+s.prob+'%)').join(', ')}</div>`;
+          html += `<div class="small">ExpGoals: H:${p.expectedGoals.home} A:${p.expectedGoals.away} Total:${p.expectedGoals.total}</div>`;
+        } else {
+          html += `<div class="small">No prediction data yet.</div>`;
         }
-
         html += `</div>`;
       });
-
-      box.innerHTML = html;
-
-    } catch (err) {
-      console.error("Front-end SSE Parse Error:", err);
-      document.getElementById("predictionBox").innerHTML =
-        "<span style='color:#f33'>❌ Front-End Error Parsing Prediction Data</span>";
+      predBox.innerHTML = html;
+    }catch(err){
+      predBox.innerHTML = '<div class="small" style="color:#f33">Front-end parse error</div>';
+      console.error("SSE parse",err);
     }
   };
-</script>
 
+  // optionally refresh matches every 7 minutes
+  setInterval(loadToday, 7*60*1000);
+</script>
 </body>
 </html>
