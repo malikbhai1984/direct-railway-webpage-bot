@@ -1,94 +1,300 @@
 
 
 
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Live Football Predictions (PKT)</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Live Predictions — League Tabs</title>
 <style>
-body{background:#0b0b0b;color:#fff;font-family:Arial, sans-serif;margin:0;padding:18px;}
-header{text-align:center;margin-bottom:12px}
-.layout{display:flex;gap:18px;align-items:flex-start;max-width:1200px;margin:0 auto;}
-.left{width:38%;background:#111;padding:12px;border-radius:10px;border:1px solid #222;}
-.right{width:62%;background:#0e0f10;padding:12px;border-radius:10px;border:2px solid #00ff90;position:relative;}
-h2{margin:6px 0 12px 0;color:#00ff90}
-.match{padding:8px;border-bottom:1px solid #222;}
-.predCard{padding:10px;margin-bottom:10px;border-radius:8px;background:#151515;transition:all 0.3s;}
-.strong{background:#073;color:#fff;}
-.small{font-size:12px;color:#bbb;}
-.meta{font-size:13px;color:#9cc;margin-bottom:8px;}
-.toast{position:fixed;top:10px;right:10px;background:#00ff90;color:#000;padding:10px 16px;border-radius:6px;box-shadow:0 0 8px #0f0;opacity:0.9;margin-bottom:6px;z-index:999;}
-@media(max-width:900px){.layout{flex-direction:column}.left,.right{width:100%}}
+  :root{ --bg:#0b0b0b; --panel:#111; --muted:#bbb; --accent:#00ff90; --card:#151515; --strong:#073; }
+  body{ margin:0; font-family:Arial, Helvetica, sans-serif; background:var(--bg); color:#fff; padding:18px; }
+  header{ text-align:center; margin-bottom:12px }
+  h1{ margin:4px 0 }
+  .topbar{ display:flex; gap:12px; align-items:center; justify-content:center; flex-wrap:wrap; margin-bottom:12px }
+  .tabs{ display:flex; gap:8px; flex-wrap:wrap; }
+  .tab{ background:#1c1c1c; padding:8px 10px; border-radius:8px; cursor:pointer; border:1px solid #222; color:var(--muted) }
+  .tab.active{ background:var(--accent); color:#000; font-weight:700; border-color:rgba(0,255,144,0.8) }
+  .controls{ display:flex; gap:8px; align-items:center }
+  .search{ padding:8px; border-radius:8px; background:#111; border:1px solid #222; color:#fff }
+  .toggle{ padding:6px 8px; border-radius:8px; background:#111; border:1px solid #222; cursor:pointer; color:var(--muted) }
+
+  .layout{ display:flex; gap:18px; align-items:flex-start; max-width:1200px; margin:0 auto; }
+  .left{ width:38%; background:var(--panel); padding:12px; border-radius:10px; border:1px solid #222; max-height:78vh; overflow:auto }
+  .right{ width:62%; background:#0e0f10; padding:12px; border-radius:10px; border:2px solid var(--accent); max-height:78vh; overflow:auto }
+
+  .leagueHeader{ font-weight:700; color:var(--accent); margin:8px 0; display:flex; justify-content:space-between; align-items:center }
+  .match{ padding:8px; border-bottom:1px solid #222; }
+  .small{ font-size:12px; color:var(--muted) }
+  .predCard{ padding:10px; margin-bottom:10px; border-radius:8px; background:var(--card); transition:all .2s }
+  .predCard.strong{ box-shadow:0 0 8px rgba(0,255,144,.14); border-left:4px solid var(--accent) }
+  .meta{ font-size:13px; color:#9cc; margin-bottom:8px }
+
+  .grid{ display:grid; grid-template-columns: 1fr; gap:8px; }
+  .marketList{ font-size:12px; color:#ddd; margin-top:6px }
+
+  /* toast */
+  .toast{ position:fixed; top:12px; right:12px; background:var(--accent); color:#000; padding:10px 14px; border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,.6); z-index:9999; font-weight:700 }
+  @media(max-width:900px){ .layout{ flex-direction:column } .left,.right{ width:100% } .tabs{ justify-content:center } }
 </style>
 </head>
 <body>
 <header>
-<h1>⚽ Live Auto Predictions (PKT)</h1>
-<div class="small">Auto updates every 5 minutes. No reload required.</div>
-<div class="small" style="color:#0f0">Welcome! Auto Prediction Active ✅</div>
+  <h1>⚽ Live Auto Predictions (PKT)</h1>
+  <div class="small">Auto update every 5 minutes • Shows last 200 predictions • Tabs by league</div>
+  <div id="lastUpdated" class="small" style="margin-top:6px;color:#9cc">Waiting for first snapshot...</div>
 </header>
 
-<div class="layout">
-  <div class="left">
-    <h2>📅 Today Matches (PKT)</h2>
-    <div id="matchList">Loading...</div>
-  </div>
-
-  <div class="right">
-    <h2>🔮 Live Predictions</h2>
-    <div id="predList">Waiting for updates...</div>
+<div class="topbar">
+  <div class="tabs" id="tabs"></div>
+  <div style="width:18px"></div>
+  <div class="controls">
+    <input id="searchInput" class="search" placeholder="Search team or market (e.g. BTTS, Over 2.5)" />
+    <button id="strongToggle" class="toggle">Show: All</button>
   </div>
 </div>
 
+<div class="layout">
+  <aside class="left">
+    <h2 class="small" style="color:var(--accent)">📅 Today Matches (Top leagues + WC Qualifiers)</h2>
+    <div id="matchList">Loading matches...</div>
+  </aside>
+
+  <main class="right">
+    <h2 style="color:var(--accent)">🔮 Live Predictions</h2>
+    <div id="predList">Waiting for updates...</div>
+  </main>
+</div>
+
 <script>
-async function loadToday(){
-  try{
-    const r = await fetch('/today-matches');
-    const j = await r.json();
-    const box = document.getElementById('matchList');
-    if(!j.length){ box.innerHTML='<div class="small">No matches today.</div>'; return; }
-    let html='';
-    j.forEach(m=>{
-      html+=`<div class="match"><strong>${m.teams.home.name} vs ${m.teams.away.name}</strong>
-      <div class="small">${m.league.name} • ${new Date(m.fixture.date).toLocaleString()} PKT • ${m.fixture.status.short}</div></div>`;
+(async function(){
+  // local state
+  let leagueOrder = [];            // array of league names in order
+  let leagueMap = new Map();       // teamName -> leagueName (to annotate preds)
+  let preds = [];                  // latest predictions (max 200)
+  let notified = new Set();        // to avoid duplicate toasts (match identifier)
+  let currentTab = 'All';
+  let strongOnly = false;
+
+  // DOM refs
+  const tabsEl = document.getElementById('tabs');
+  const matchListEl = document.getElementById('matchList');
+  const predListEl = document.getElementById('predList');
+  const lastUpdatedEl = document.getElementById('lastUpdated');
+  const searchInput = document.getElementById('searchInput');
+  const strongToggle = document.getElementById('strongToggle');
+
+  // helpers
+  function showToast(text){
+    const t = document.createElement('div'); t.className='toast'; t.textContent = text;
+    document.body.appendChild(t);
+    setTimeout(()=>t.remove(),5000);
+  }
+
+  function htmlEscape(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function renderTabs(){
+    const leagues = ['All', ...leagueOrder];
+    tabsEl.innerHTML = '';
+    leagues.forEach(l=>{
+      const btn = document.createElement('div');
+      btn.className = 'tab' + (l===currentTab?' active':'');
+      btn.textContent = l + (l!=='All' ? ` (${preds.filter(p=>p.league===l).length})` : ` (${preds.length})`);
+      btn.onclick = ()=>{ currentTab = l; renderPreds(); renderTabs(); };
+      tabsEl.appendChild(btn);
     });
-    box.innerHTML = html;
-  }catch(e){ console.error(e); document.getElementById('matchList').innerHTML='Fetch error'; }
-}
-loadToday();
-setInterval(loadToday,5*60*1000);
+  }
 
-const predBox = document.getElementById('predList');
-const sse = new EventSource('/events');
-sse.onopen = ()=>{ predBox.innerHTML='<div class="small" style="color:#0f0">Connected — waiting for first snapshot...</div>'; };
-sse.onerror = ()=>{ predBox.innerHTML='<div class="small" style="color:#f33">Connection lost. Check backend.</div>'; };
+  // render matches left column (today matches)
+  async function loadToday(){
+    try {
+      const res = await fetch('/today-matches');
+      const data = await res.json();
+      if(!Array.isArray(data) || data.length===0){
+        matchListEl.innerHTML = '<div class="small">No matches found for today.</div>';
+        return;
+      }
+      // build leagueOrder and leagueMap from today matches
+      leagueOrder = [];
+      leagueMap.clear();
+      const leaguesSeen = new Set();
+      data.forEach(m=>{
+        const league = (m.league && m.league.name) || (m.league) || 'Unknown';
+        if(!leaguesSeen.has(league)){ leaguesSeen.add(league); leagueOrder.push(league); }
+        // map by team name (lowercase keys)
+        try {
+          if(m.teams && m.teams.home && m.teams.away){
+            leagueMap.set(String(m.teams.home.name).toLowerCase(), league);
+            leagueMap.set(String(m.teams.away.name).toLowerCase(), league);
+          } else if(m.home && m.away) {
+            leagueMap.set(String(m.home).toLowerCase(), league);
+            leagueMap.set(String(m.away).toLowerCase(), league);
+          }
+        } catch(e){}
+      });
 
-function showToast(message){
-  const t = document.createElement('div'); t.className='toast'; t.innerText=message;
-  document.body.appendChild(t); setTimeout(()=>t.remove(),5000);
-}
+      // show a compact grouped list
+      let out = '';
+      const grouped = {};
+      data.forEach(m=>{
+        const league = (m.league && m.league.name) || (m.league) || 'Unknown';
+        (grouped[league] || (grouped[league]=[])).push(m);
+      });
+      for(const L of leagueOrder){
+        out += `<div class="leagueHeader">${htmlEscape(L)} <span class="small">(${grouped[L].length} matches)</span></div>`;
+        grouped[L].slice(0,50).forEach(m=>{
+          const home = (m.teams && m.teams.home && m.teams.home.name) || m.home || 'Home';
+          const away = (m.teams && m.teams.away && m.teams.away.name) || m.away || 'Away';
+          const kickoff = m.fixture && m.fixture.date ? new Date(m.fixture.date).toLocaleString() : (m.dateEvent || 'Time');
+          out += `<div class="match"><strong>${htmlEscape(home)} vs ${htmlEscape(away)}</strong><div class="small">${htmlEscape(kickoff)} • ${htmlEscape(L)}</div></div>`;
+        });
+      }
+      matchListEl.innerHTML = out;
+      renderTabs();
+    } catch(err){
+      console.error('loadToday err', err);
+      matchListEl.innerHTML = '<div class="small">Error loading matches.</div>';
+    }
+  }
 
-sse.onmessage=(e)=>{
-  try{
-    const data = JSON.parse(e.data);
-    if(!data.matches){ predBox.innerHTML='No data'; return; }
-    let html=`<div class="meta">Updated: ${new Date(data.ts).toLocaleString()}</div>`;
-    data.matches.forEach(item=>{
-      const strong = (item.strongMarkets && item.strongMarkets.length>0);
-      html+=`<div class="predCard ${strong?'strong':''}">
-        <div><strong>${item.home} vs ${item.away}</strong></div>
-        <div>Winner: Home ${item.winnerProb.home}% • Draw ${item.winnerProb.draw}% • Away ${item.winnerProb.away}%</div>
-        <div>BTTS: ${item.bttsProb}% • Last10: ${item.last10Prob}%</div>
-        <div class="small">xG: H:${item.xG.home} A:${item.xG.away} Total:${item.xG.total}</div>
-        <div class="small">Strong markets: ${item.strongMarkets.map(s=>s.market+'('+s.prob+'%)').join(', ')}</div>
-      </div>`;
-      if(strong) showToast(`New strong prediction: ${item.home} vs ${item.away}`);
+  // annotate prediction with league (try to map) and create id
+  function annotatePrediction(p){
+    // p expected: { home, away, winnerProb, bttsProb, overUnder, last10Prob, xG, strongMarkets, league? }
+    const obj = Object.assign({}, p);
+    if(!obj.league){
+      // try match team to leagueMap
+      const h = (obj.home||'').toLowerCase();
+      const a = (obj.away||'').toLowerCase();
+      let lk = leagueMap.get(h) || leagueMap.get(a);
+      if(!lk){
+        // try partial match: find any key that contains team substring
+        for(const [team, lg] of leagueMap.entries()){
+          if(team && (h.includes(team) || a.includes(team) || team.includes(h) || team.includes(a))){ lk=lg; break; }
+        }
+      }
+      obj.league = lk || 'Other';
+    }
+    // id for uniqueness: home|away|league
+    obj._id = `${obj.home}___vs___${obj.away}___${obj.league}`;
+    return obj;
+  }
+
+  // render predictions in right panel
+  function renderPreds(){
+    const q = (searchInput.value || '').trim().toLowerCase();
+    const filtered = preds.filter(p=>{
+      if(currentTab !== 'All' && p.league !== currentTab) return false;
+      if(strongOnly && (!p.strongMarkets || p.strongMarkets.length===0)) return false;
+      if(!q) return true;
+      // search in teams, markets, prediction fields
+      const hay = `${p.home} ${p.away} ${JSON.stringify(p.strongMarkets||'')} ${JSON.stringify(p.overUnder||'')}`.toLowerCase();
+      return hay.includes(q);
     });
-    predBox.innerHTML = html;
-  }catch(err){ console.error(err); predBox.innerHTML='<div class="small" style="color:#f33">Parse error</div>'; }
-};
+
+    if(filtered.length===0){
+      predListEl.innerHTML = '<div class="small">No predictions for this filter.</div>';
+      return;
+    }
+
+    let html = `<div class="meta">Showing ${filtered.length} of ${preds.length} • Updated: ${new Date().toLocaleString()}</div>`;
+    // group by league for nicer view
+    const grouped = {};
+    filtered.forEach(p => { (grouped[p.league] || (grouped[p.league]=[])).push(p); });
+    for(const L of (leagueOrder.length ? leagueOrder : Object.keys(grouped))){
+      const items = grouped[L] || [];
+      if(items.length===0) continue;
+      html += `<div class="leagueHeader">${htmlEscape(L)} <span class="small">(${items.length})</span></div>`;
+      items.forEach(it=>{
+        const strong = (it.strongMarkets && it.strongMarkets.length>0);
+        html += `<div class="predCard ${strong ? 'strong' : ''}">
+          <div><strong>${htmlEscape(it.home)} vs ${htmlEscape(it.away)}</strong></div>
+          <div>Winner: Home ${it.winnerProb?.home ?? '-'}% • Draw ${it.winnerProb?.draw ?? '-'}% • Away ${it.winnerProb?.away ?? '-'}%</div>
+          <div>BTTS: ${it.bttsProb ?? '-'}% • Last10: ${it.last10Prob ?? '-'}%</div>
+          <div class="small">xG: H:${it.xG?.home ?? '-'} A:${it.xG?.away ?? '-'} Total:${it.xG?.total ?? '-'}</div>
+          <div class="marketList small">Strong: ${it.strongMarkets && it.strongMarkets.length ? it.strongMarkets.map(s=>`${s.market}(${s.prob}%)`).join(', ') : '—'}</div>
+        </div>`;
+      });
+    }
+
+    predListEl.innerHTML = html;
+  }
+
+  // SSE connect & handle updates
+  function connectSSE(){
+    const evt = new EventSource('/events');
+    evt.onopen = ()=>{ lastUpdatedEl.textContent = 'Connected — waiting for data...'; };
+    evt.onerror = (e)=>{ lastUpdatedEl.textContent = 'Connection lost. Retrying...'; console.warn('SSE error', e); };
+    evt.onmessage = async (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if(data.ts) lastUpdatedEl.textContent = `Updated: ${new Date(data.ts).toLocaleString()}`;
+        if(!Array.isArray(data.matches)) return;
+
+        // annotate and keep only latest 200
+        const annotated = data.matches.map(annotatePrediction);
+        // keep in memory, dedupe by _id preferring newest
+        const byId = {};
+        annotated.forEach(a => byId[a._id] = a);
+        // also include previous preds not in this batch (to maintain up to 200 history)
+        preds.forEach(p => { if(!byId[p._id]) byId[p._id] = p; });
+        const all = Object.values(byId).sort((a,b)=> (b._ts||0) - (a._ts||0));
+        // we don't have timestamps in SSE items, but server-sent batch order is recent-first; preserve order from annotated then existing
+        // to keep things simple, put annotated first:
+        const merged = [...annotated, ...preds.filter(p => !annotated.some(a=>a._id===p._id))].slice(0,200);
+        preds = merged;
+
+        // update leagueOrder with any new leagues
+        const ls = new Set(leagueOrder);
+        preds.forEach(p=>{ if(p.league && !ls.has(p.league)){ ls.add(p.league); leagueOrder.push(p.league); } });
+        // re-render tabs, preds
+        renderTabs();
+        renderPreds();
+
+        // show toast for new strong markets (only once per match id)
+        annotated.forEach(a=>{
+          if(a.strongMarkets && a.strongMarkets.length){
+            if(!notified.has(a._id)){
+              notified.add(a._id);
+              showToast(`Strong: ${a.home} vs ${a.away} — ${a.strongMarkets.map(s=>s.market+' '+s.prob+'%').join(', ')}`);
+            }
+          }
+        });
+
+      } catch(err){
+        console.error('SSE parse err', err, e.data);
+      }
+    };
+  }
+
+  // strong toggle
+  strongToggle.onclick = ()=>{ strongOnly = !strongOnly; strongToggle.textContent = strongOnly ? 'Show: Strong only' : 'Show: All'; renderPreds(); };
+
+  // search handling
+  searchInput.oninput = ()=>{ renderPreds(); };
+
+  // initial load
+  await loadToday();
+  connectSSE();
+
+  // safety: also poll /prediction endpoint every 5 minutes as fallback
+  setInterval(async ()=>{
+    try {
+      const r = await fetch('/prediction');
+      const j = await r.json();
+      if(Array.isArray(j) && j.length){
+        // annotate and load if not present
+        const annotated = j.map(annotatePrediction);
+        // merge preferring newest items first
+        const merged = [...annotated, ...preds.filter(p=>!annotated.some(a=>a._id===p._id))].slice(0,200);
+        preds = merged;
+        renderTabs();
+        renderPreds();
+      }
+    } catch(e){}
+  }, 5*60*1000);
+
+})();
 </script>
 </body>
 </html>
