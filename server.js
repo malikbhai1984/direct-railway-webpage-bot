@@ -1,5 +1,6 @@
 
 
+
 import express from "express"; 
 import axios from "axios";
 import mongoose from "mongoose";
@@ -17,7 +18,7 @@ app.use(cors());
 const PORT = process.env.PORT || 8080;
 
 // ----------------- MONGODB -----------------
-mongoose.connect(process.env.MONGO_URI || "mongodb://mongo:password@host:port", {
+mongoose.connect(process.env.MONGO_PUBLIC_URL, {
     useNewUrlParser: true,
     useUnifiedTopology: true
 }).then(()=>console.log("✔ MongoDB Connected"))
@@ -79,17 +80,14 @@ async function makePrediction(match){
         const home = match.teams.home.name;
         const away = match.teams.away.name;
 
-        // ---------- Fetch H2H ----------
         const h2h = await getH2H(match.teams.home.id, match.teams.away.id);
         const homeForm = h2h.length ? h2h.filter(m=>m.teams.home.id===match.teams.home.id).length : 3;
         const awayForm = h2h.length ? h2h.filter(m=>m.teams.away.id===match.teams.away.id).length : 3;
 
-        // ---------- Poisson xG ----------
         const xG_home = parseFloat((homeForm + Math.random()*0.5).toFixed(2));
         const xG_away = parseFloat((awayForm + Math.random()*0.5).toFixed(2));
         const xG_total = parseFloat((xG_home+xG_away).toFixed(2));
 
-        // ---------- Probability ----------
         let homeProb = Math.min(Math.round(40 + xG_home*15 + Math.random()*10),95);
         let awayProb = Math.min(Math.round(30 + xG_away*15 + Math.random()*10),95);
         let drawProb = Math.max(100-homeProb-awayProb,5);
@@ -100,16 +98,13 @@ async function makePrediction(match){
 
         const bttsProb = Math.min(Math.round(xG_home*20 + xG_away*20 + Math.random()*30),95);
 
-        // ---------- Over/Under 0.5–5.5 ----------
         const overUnder = {};
         for(let i=0.5;i<=5.5;i+=0.5){
             overUnder[i.toFixed(1)] = Math.min(Math.round((xG_total/i)*50 + Math.random()*30),99);
         }
 
-        // ---------- Last 10 min goal chance ----------
         const last10Prob = Math.min(Math.round((xG_home+xG_away)*15 + Math.random()*30),95);
 
-        // ---------- Strong markets ----------
         const strongMarkets = [];
         Object.keys(overUnder).forEach(k=>{ if(overUnder[k]>=85) strongMarkets.push({market:`Over ${k}`,prob:overUnder[k]}); });
         if(homeProb>=85) strongMarkets.push({market:"Home Win",prob:homeProb});
@@ -117,7 +112,7 @@ async function makePrediction(match){
         if(bttsProb>=85) strongMarkets.push({market:"BTTS",prob:bttsProb});
 
         return {
-            match_id: match.fixture.id,
+            match_id: match.match_id || match.fixture.id,
             league: match.league.name,
             teams:`${home} vs ${away}`,
             winnerProb:{home:homeProb, draw:drawProb, away:awayProb},
@@ -135,7 +130,6 @@ async function makePrediction(match){
 cron.schedule("*/15 * * * *", async ()=>{
     console.log("🔁 Fetching live matches from API...");
     const matches = await getTodayMatches();
-    // Purane matches replace kar do
     await Prediction.deleteMany({}); 
     for(let m of matches){
         await Prediction.create({ match_id:m.fixture.id, league:m.league.name, teams:`${m.teams.home.name} vs ${m.teams.away.name}`, created_at:new Date() });
@@ -146,7 +140,7 @@ cron.schedule("*/15 * * * *", async ()=>{
 // ----------------- CRON JOB: Prediction Engine 5 min -----------------
 cron.schedule("*/5 * * * *", async ()=>{
     console.log("🔁 Auto Prediction Check Running...");
-    const matches = await Prediction.find(); // DB se fetch
+    const matches = await Prediction.find();
     for(let m of matches){
         const p = await makePrediction(m);
         if(!p) continue;
@@ -183,7 +177,7 @@ app.get("/events", async (req,res)=>{
         }
     };
 
-    const interval = setInterval(sendUpdates,5*60*1000); // 5 min
+    const interval = setInterval(sendUpdates,5*60*1000);
     req.on("close",()=>{ clearInterval(interval); console.log("❌ SSE Client Disconnected"); });
 });
 
