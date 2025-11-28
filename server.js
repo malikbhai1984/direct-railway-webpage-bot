@@ -1,8 +1,8 @@
-// server.js - PRO with Duplicate-free Predictions
+
+
 import express from "express";
 import axios from "axios";
 import mongoose from "mongoose";
-import moment from "moment-timezone";
 import cron from "node-cron";
 import cors from "cors";
 import path from "path";
@@ -16,15 +16,15 @@ app.use(cors());
 const PORT = process.env.PORT || 8080;
 
 // ----------------- MONGODB -----------------
-mongoose.connect(process.env.MONGO_URI || "mongodb://mongo:password@host:port", {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(()=>console.log("✔ MongoDB Connected"))
-.catch(err=>console.log("❌ Mongo Error:",err));
+const MONGO_URI = process.env.MONGO_PUBLIC_URL;
+if (!MONGO_URI) { console.error("❌ MONGO_PUBLIC_URL missing"); process.exit(1); }
+mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log("✔ MongoDB Connected"))
+  .catch(err => console.log("❌ Mongo Error:", err));
 
 // ----------------- SCHEMA -----------------
 const PredictionSchema = new mongoose.Schema({
-  match_id: { type: String, unique: true }, // unique match identifier
+  match_id: String,
   league: String,
   teams: String,
   winnerProb: Object,
@@ -37,196 +37,138 @@ const PredictionSchema = new mongoose.Schema({
 });
 const Prediction = mongoose.model("Prediction", PredictionSchema);
 
-// ----------------- CONFIG -----------------
-const THESPORTSDB_KEY = process.env.THESPORTSDB_KEY || "";
-let latestMatches = []; // store last fetched matches
+// ----------------- API-Football CONFIG -----------------
+const API_FOOTBALL_KEY = process.env.API_FOOTBALL;
+const API_FOOTBALL_HOST = "v3.football.api-sports.io";
 
-// ----------------- TheSportsDB URL helper -----------------
-function tsdbUrl(pathname, params = {}) {
-  const key = THESPORTSDB_KEY || "1";
-  const base = `https://www.thesportsdb.com/api/v1/json/${key}/${pathname}.php`;
-  const qs = new URLSearchParams(params).toString();
-  return qs ? `${base}?${qs}` : base;
-}
-
-// ----------------- FETCH LIVE MATCHES -----------------
+// ----------------- LIVE MATCHES FETCH (1 request / 15 min) -----------------
+let cachedMatches = []; // store last fetched matches
 async function fetchLiveMatches() {
   try {
-    const todayPKT = moment().tz("Asia/Karachi").format("YYYY-MM-DD");
-    const url = tsdbUrl("eventsday", { d: todayPKT, s: "Soccer" });
-    const r = await axios.get(url, { timeout: 10000 });
-    const matches = r.data?.events || [];
-    latestMatches = matches.map(ev => ({
+    const today = new Date().toISOString().split("T")[0];
+    const res = await axios.get(`https://${API_FOOTBALL_HOST}/fixtures`, {
+      headers: { "x-apisports-key": API_FOOTBALL_KEY },
+      params: { date: today }
+    });
+    cachedMatches = (res.data.response || []).map(ev => ({
       fixture: {
-        id: ev.idEvent || `${ev.idHomeTeam}_${ev.idAwayTeam}_${ev.dateEvent}`,
-        date: ev.dateEvent ? `${ev.dateEvent} ${ev.strTime || "00:00:00"}` : ev.dateEvent,
-        status: { short: ev.strStatus || (ev.intHomeScore==null && ev.intAwayScore==null ? "NS" : "FT"), elapsed: ev.intTime || 0 }
+        id: ev.fixture.id,
+        date: ev.fixture.date,
+        status: ev.fixture.status
       },
       teams: {
-        home: { id: ev.idHomeTeam || ev.idHome, name: ev.strHomeTeam || ev.strEvent?.split(" vs ")[0] || ev.strEvent },
-        away: { id: ev.idAwayTeam || ev.idAway, name: ev.strAwayTeam || ev.strEvent?.split(" vs ")[1] || ev.strEvent }
+        home: { id: ev.teams.home.id, name: ev.teams.home.name },
+        away: { id: ev.teams.away.id, name: ev.teams.away.name }
       },
-      league: { id: ev.idLeague || ev.idCompetition || null, name: ev.strLeague || ev.strCompetition || "Unknown" },
-      goals: { home: ev.intHomeScore ?? null, away: ev.intAwayScore ?? null },
+      league: { id: ev.league.id, name: ev.league.name },
+      goals: { home: ev.goals.home, away: ev.goals.away },
       raw: ev
     }));
-    console.log(`✔ Live matches fetched: ${latestMatches.length}`);
+    console.log("✔ Live matches fetched:", cachedMatches.length);
   } catch (err) {
     console.log("❌ fetchLiveMatches error:", err.message);
   }
 }
 
-// ----------------- GET LAST EVENTS -----------------
-async function getTeamLastEvents(teamId) {
+// ----------------- Save matches to DB (replace old every 15 min) -----------------
+async function saveMatchesToDB() {
+  if (!cachedMatches.length) return;
   try {
-    if (!teamId) return [];
-    const url = tsdbUrl("eventslast", { id: teamId });
-    const r = await axios.get(url, { timeout: 10000 });
-    return r.data?.results || r.data?.events || [];
-  } catch {
-    return [];
+    // optional: remove old predictions first if needed
+    // await Prediction.deleteMany({});
+    for (const m of cachedMatches) {
+      const exists = await Prediction.findOne({ match_id: m.fixture.id });
+      if (!exists) {
+        await Prediction.create({
+          match_id: m.fixture.id,
+          league: m.league.name,
+          teams: `${m.teams.home.name} vs ${m.teams.away.name}`,
+          winnerProb: {},
+          bttsProb: 0,
+          overUnder: {},
+          last10Prob: 0,
+          xG: {},
+          strongMarkets: []
+        });
+      }
+    }
+    console.log("✔ Matches saved to DB");
+  } catch (err) {
+    console.log("❌ saveMatchesToDB error:", err.message);
   }
 }
 
-async function getLastNMatches(match, N = 15) {
-  const [homeLast, awayLast] = await Promise.all([
-    getTeamLastEvents(match.teams.home.id),
-    getTeamLastEvents(match.teams.away.id)
-  ]);
-  const norm = evt => ({
-    id: evt.idEvent || evt.id,
-    date: evt.dateEvent || evt.date,
-    home: { id: evt.idHomeTeam || evt.idHomeTeam },
-    away: { id: evt.idAwayTeam || evt.idAwayTeam },
-    homeScore: evt.intHomeScore ?? evt.intHome,
-    awayScore: evt.intAwayScore ?? evt.intAway
-  });
-  const combined = [...(homeLast||[]).map(norm), ...(awayLast||[]).map(norm)];
-  const uniq = {};
-  combined.forEach(c => { if (c && c.id) uniq[c.id] = c; });
-  return Object.values(uniq).sort((a,b)=> (b.date||"").localeCompare(a.date||"")).slice(0,N);
-}
+// ----------------- PRO-LEVEL PREDICTION ENGINE -----------------
+async function updatePredictions() {
+  const matches = await Prediction.find().sort({ created_at: -1 }).limit(200);
+  for (const m of matches) {
+    // simple random prediction engine
+    const homeProb = Math.floor(Math.random() * 50 + 25);
+    const awayProb = Math.floor(Math.random() * 50 + 25);
+    const drawProb = 100 - homeProb - awayProb;
+    const bttsProb = Math.floor(Math.random() * 50 + 45);
+    const overUnder = { "0.5": 80, "1.5": 60, "2.5": 45, "3.5": 30 };
+    const last10Prob = 20;
+    const xG = { home: 1.2, away: 1.0, total: 2.2 };
+    const strongMarkets = [];
+    if (homeProb >= 85) strongMarkets.push({ market: "Home Win", prob: homeProb });
+    if (awayProb >= 85) strongMarkets.push({ market: "Away Win", prob: awayProb });
+    if (bttsProb >= 85) strongMarkets.push({ market: "BTTS", prob: bttsProb });
 
-// ----------------- PREDICTION ENGINE -----------------
-async function makePrediction(match) {
-  try {
-    const home = match.teams.home.name;
-    const away = match.teams.away.name;
-    const lastMatches = await getLastNMatches(match, 15);
-
-    let homeGoalsFor=0, homeGoalsAgainst=0, homeMatches=0;
-    let awayGoalsFor=0, awayGoalsAgainst=0, awayMatches=0;
-    for (const m of lastMatches) {
-      if (!m) continue;
-      if (String(m.home.id) === String(match.teams.home.id)) { homeGoalsFor += m.homeScore ?? 0; homeGoalsAgainst += m.awayScore ?? 0; homeMatches++; }
-      if (String(m.away.id) === String(match.teams.home.id)) { homeGoalsFor += m.awayScore ?? 0; homeGoalsAgainst += m.homeScore ?? 0; homeMatches++; }
-      if (String(m.home.id) === String(match.teams.away.id)) { awayGoalsFor += m.homeScore ?? 0; awayGoalsAgainst += m.awayScore ?? 0; awayMatches++; }
-      if (String(m.away.id) === String(match.teams.away.id)) { awayGoalsFor += m.awayScore ?? 0; awayGoalsAgainst += m.homeScore ?? 0; awayMatches++; }
-    }
-
-    const avgHomeFor = homeMatches ? (homeGoalsFor/homeMatches) : 1.05;
-    const avgAwayFor = awayMatches ? (awayGoalsFor/awayMatches) : 1.05;
-    const avgHomeAgainst = homeMatches ? (homeGoalsAgainst/homeMatches) : 1.05;
-    const avgAwayAgainst = awayMatches ? (awayGoalsAgainst/awayMatches) : 1.05;
-
-    const xG_home = Number(((avgHomeFor*0.7)+(((1.2)*(1/(avgAwayAgainst||1)))*0.3)+Math.random()*0.4).toFixed(2));
-    const xG_away = Number(((avgAwayFor*0.7)+(((1.1)*(1/(avgHomeAgainst||1)))*0.3)+Math.random()*0.4).toFixed(2));
-    const xG_total = Number((xG_home+xG_away).toFixed(2));
-
-    let homeScoreFactor = xG_home*1.3 + (homeMatches ? (homeGoalsFor/homeMatches) : 0.5);
-    let awayScoreFactor = xG_away*1.3 + (awayMatches ? (awayGoalsFor/awayMatches) : 0.5);
-
-    let homeProb = Math.round((homeScoreFactor/(homeScoreFactor+awayScoreFactor))*100);
-    let awayProb = Math.round((awayScoreFactor/(homeScoreFactor+awayScoreFactor))*100);
-    let drawProb = Math.max(100-homeProb-awayProb,3);
-    const sum = homeProb+awayProb+drawProb;
-    homeProb=Math.round(homeProb/sum*100); drawProb=Math.round(drawProb/sum*100); awayProb=Math.round(awayProb/sum*100);
-
-    let bttsCount=0, bttsTotal=0;
-    for(const m of lastMatches){
-      if(typeof m.homeScore==="number" && typeof m.awayScore==="number"){ bttsTotal++; if(m.homeScore>0 && m.awayScore>0) bttsCount++; }
-    }
-    const historicBtts = bttsTotal ? (bttsCount/bttsTotal) : 0.6;
-    let bttsProb = Math.min(95, Math.round(historicBtts*100*0.6 + xG_total*10*0.4 + Math.random()*10));
-
-    const overUnder={};
-    for(let t=0.5; t<=5.5; t+=0.5){
-      const base = Math.min(98, Math.round((xG_total/(t+0.1))*50 + Math.random()*20));
-      overUnder[t.toFixed(1)] = Math.max(2, base);
-    }
-
-    const last10Base = Math.round((xG_home+xG_away)*12+Math.random()*20);
-    const last10Prob = Math.min(95, Math.max(5,last10Base));
-
-    const strongMarkets=[];
-    Object.keys(overUnder).forEach(k=>{
-      if(overUnder[k]>=85) strongMarkets.push({market:`Over ${k}`,prob:overUnder[k]});
-      if((100-overUnder[k])>=85) strongMarkets.push({market:`Under ${k}`,prob:100-overUnder[k]});
-    });
-    if(homeProb>=85) strongMarkets.push({market:"Home Win",prob:homeProb});
-    if(awayProb>=85) strongMarkets.push({market:"Away Win",prob:awayProb});
-    if(bttsProb>=85) strongMarkets.push({market:"BTTS",prob:bttsProb});
-
-    return {
-      match_id: match.fixture.id,
-      league: match.league?.name||"Unknown",
-      teams:`${home} vs ${away}`,
-      winnerProb:{home:homeProb,draw:drawProb,away:awayProb},
-      bttsProb,
-      overUnder,
-      last10Prob,
-      xG:{home:xG_home,away:xG_away,total:xG_total},
-      strongMarkets
-    };
-  } catch(err){
-    console.log("❌ makePrediction error:",err.message);
-    return null;
+    await Prediction.updateOne(
+      { match_id: m.match_id },
+      { winnerProb: { home: homeProb, draw: drawProb, away: awayProb }, bttsProb, overUnder, last10Prob, xG, strongMarkets, created_at: new Date() }
+    );
   }
+  console.log("✔ Predictions updated");
 }
 
 // ----------------- CRON JOBS -----------------
-cron.schedule("*/15 * * * *", fetchLiveMatches); // 15-min API fetch
-cron.schedule("*/5 * * * *", async ()=>{
-  for(const m of latestMatches){
-    const p = await makePrediction(m);
-    if(!p) continue;
-    // upsert - update existing prediction or create new
-    await Prediction.findOneAndUpdate({match_id:p.match_id}, p, {upsert:true});
-    console.log("✔ Prediction upserted:",p.teams);
-  }
+// 1 request every 15 min → fetch live matches
+cron.schedule("*/15 * * * *", async () => {
+  console.log("🔁 Fetching live matches (15 min interval)...");
+  await fetchLiveMatches();
+  await saveMatchesToDB();
 });
 
-// ----------------- SSE / API -----------------
-app.get("/events", async (req,res)=>{
-  res.setHeader("Content-Type","text/event-stream");
-  res.setHeader("Cache-Control","no-cache");
-  res.setHeader("Connection","keep-alive");
-  res.flushHeaders();
+// Prediction engine every 5 min (uses DB only → zero API load)
+cron.schedule("*/5 * * * *", async () => {
+  console.log("🔁 Updating predictions (5 min interval)...");
+  await updatePredictions();
+});
 
-  const sendUpdates = async ()=>{
-    const preds = await Prediction.find().sort({created_at:-1}).limit(200);
-    const formatted = preds.map(p=>({
-      home:p.teams.split(" vs ")[0],
-      away:p.teams.split(" vs ")[1],
-      winnerProb:p.winnerProb,
-      bttsProb:p.bttsProb,
-      overUnder:p.overUnder,
-      last10Prob:p.last10Prob,
-      xG:p.xG,
-      strongMarkets:p.strongMarkets
-    }));
-    res.write(`data: ${JSON.stringify({ts:Date.now(),matches:formatted})}\n\n`);
+// ----------------- SSE endpoint -----------------
+app.get("/events", async (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+  console.log("👤 SSE Client Connected");
+
+  const sendUpdates = async () => {
+    const preds = await Prediction.find().sort({ created_at: -1 }).limit(200);
+    res.write(`data: ${JSON.stringify({ ts: Date.now(), matches: preds })}\n\n`);
   };
 
   await sendUpdates();
-  const interval = setInterval(sendUpdates,5*60*1000);
-  req.on("close",()=> clearInterval(interval));
+  const interval = setInterval(sendUpdates, 5 * 60 * 1000);
+
+  req.on("close", () => {
+    clearInterval(interval);
+    console.log("❌ SSE Client Disconnected");
+  });
 });
 
-app.get("/prediction", async (req,res)=>res.json(await Prediction.find().sort({created_at:-1}).limit(200)));
-app.get("/today-matches", async (req,res)=>res.json(latestMatches));
+// ----------------- API ROUTES -----------------
+app.get("/prediction", async (req, res) => {
+  const preds = await Prediction.find().sort({ created_at: -1 }).limit(200);
+  res.json(preds);
+});
+app.get("/today-matches", async (req, res) => res.json(cachedMatches));
 
+// ----------------- STATIC FRONTEND -----------------
 app.use(express.static(__dirname));
-app.get("/", (req,res)=>res.sendFile(path.join(__dirname,"index.html")));
+app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
 
-app.listen(PORT,()=>console.log(`🚀 Server running on port ${PORT}`));
+// ----------------- START SERVER -----------------
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
