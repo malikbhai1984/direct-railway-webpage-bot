@@ -1,7 +1,7 @@
 
 
 
-// server.js - Dual-API Optimized Version
+// server.js - Dual-API Fully Fixed (Live + Scheduled + League Display)
 import express from "express";
 import axios from "axios";
 import mongoose from "mongoose";
@@ -38,13 +38,13 @@ const PredictionSchema = new mongoose.Schema({
   last10Prob: Number,
   xG: Object,
   strongMarkets: Array,
-  sourceAPI: String,            // <-- API source log
+  sourceAPI: String,            // API source log
   updated_at: { type: Date, default: Date.now }
 });
 const Prediction = mongoose.model("Prediction", PredictionSchema);
 
 // ----------------- API KEYS -----------------
-const ALLSPORTS_KEY = process.env.ALL_SPORTS_KEY; // Railway variable
+const ALLSPORTS_KEY = process.env.ALL_SPORTS_KEY;
 if (!ALLSPORTS_KEY) {
   console.error("❌ ALL_SPORTS_KEY missing");
   process.exit(1);
@@ -58,16 +58,21 @@ if (!API_FOOTBALL_KEY) {
 const ALLSPORTS_URL = "https://api.allsportsapi.com/football/";
 const API_FOOTBALL_URL = "https://v3.football.api-sports.io/fixtures";
 
-// ----------------- FETCH LIVE MATCHES -----------------
+// ----------------- FETCH LIVE + TODAY MATCHES -----------------
 async function fetchLiveMatches() {
   try {
-    const today = new Date().toISOString().split("T")[0];
+    // UTC date
+    const todayUTC = new Date().toISOString().split("T")[0];
+    // PKT timezone conversion
+    const todayPKT = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Karachi" }))
+      .toISOString().split("T")[0];
+
     let matches = [];
 
     // --- ALLSPORTSAPI: Premier League + LaLiga ---
     const allSportsLeagues = { "Premier League": 39, "LaLiga": 140 };
     for (const [name, id] of Object.entries(allSportsLeagues)) {
-      const res = await axios.get(`${ALLSPORTS_URL}?met=Fixtures&APIkey=${ALLSPORTS_KEY}&leagueId=${id}&from=${today}&to=${today}`);
+      const res = await axios.get(`${ALLSPORTS_URL}?met=Fixtures&APIkey=${ALLSPORTS_KEY}&leagueId=${id}&from=${todayUTC}&to=${todayUTC}`);
       const data = res.data.result || [];
       const leagueMatches = data.map(m => ({
         fixture: { id: m.event_key, date: m.event_date, status: m.event_status },
@@ -83,7 +88,10 @@ async function fetchLiveMatches() {
     // --- API-FOOTBALL: All other leagues ---
     const resAF = await axios.get(API_FOOTBALL_URL, {
       headers: { "x-apisports-key": API_FOOTBALL_KEY },
-      params: { date: today, live: "all" },
+      params: {
+        date: todayUTC,       // use UTC date
+        season: 2025          // current season
+      },
       timeout: 10000
     });
     const afMatches = resAF.data.response || [];
@@ -92,13 +100,13 @@ async function fetchLiveMatches() {
       league: m.league,
       teams: m.teams,
       goals: m.goals,
-      status: m.fixture.status,
+      status: m.fixture.status.short,
       sourceAPI: "API-Football"
     }));
     console.log(`🔹 [API-Football] Other leagues matches fetched: ${afFiltered.length}`);
     matches.push(...afFiltered);
 
-    console.log(`✔ Total live matches fetched: ${matches.length}`);
+    console.log(`✔ Total matches fetched for today: ${matches.length}`);
     return matches;
   } catch (err) {
     console.error("❌ fetchLiveMatches error:", err.message);
