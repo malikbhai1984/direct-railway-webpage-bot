@@ -81,17 +81,14 @@ try{
 const home = match.teams.home.name;
 const away = match.teams.away.name;
 
-// ---------- Fetch H2H ----------
 const h2h = await getH2H(match.teams.home.id, match.teams.away.id);
 const homeForm = h2h.length ? h2h.filter(m=>m.teams.home.id===match.teams.home.id).length : 3;
 const awayForm = h2h.length ? h2h.filter(m=>m.teams.away.id===match.teams.away.id).length : 3;
 
-// ---------- Poisson xG ----------
 const xG_home = parseFloat((homeForm + Math.random()0.5).toFixed(2));
 const xG_away = parseFloat((awayForm + Math.random()0.5).toFixed(2));
 const xG_total = (xG_home+xG_away).toFixed(2);
 
-// ---------- Probability ----------
 let homeProb = Math.min(Math.round(40 + xG_home15 + Math.random()10),95);
 let awayProb = Math.min(Math.round(30 + xG_away15 + Math.random()10),95);
 let drawProb = Math.max(100-homeProb-awayProb,5);
@@ -102,16 +99,13 @@ awayProb=Math.round(awayProb/sum100);
 
 const bttsProb = Math.min(Math.round(xG_home20 + xG_away*20 + Math.random()*30),95);
 
-// ---------- Over/Under 0.5–5.5 ----------
 const overUnder = {};
 for(let i=0.5;i<=5.5;i+=0.5){
 overUnder[i.toFixed(1)] = Math.min(Math.round((xG_total/i)*50 + Math.random()*30),99);
 }
 
-// ---------- Last 10 min goal chance ----------
-const last10Prob = Math.min(Math.round((xG_home+xG_away)*15 + Math.random()30),95);
+const last10Prob = Math.min(Math.round((xG_home+xG_away)15 + Math.random()30),95);
 
-// ---------- Strong markets ----------
 const strongMarkets = [];
 Object.keys(overUnder).forEach(k=>{ if(overUnder[k]>=85) strongMarkets.push({market:Over ${k},prob:overUnder[k]}); });
 if(homeProb>=85) strongMarkets.push({market:"Home Win",prob:homeProb});
@@ -129,12 +123,11 @@ last10Prob,
 xG:{home:xG_home, away:xG_away, total:xG_total},
 strongMarkets
 };
-
 }catch(err){ console.log("❌ Prediction Error:",err.message); return null; }
 }
 
 // ----------------- CRON JOB (EVERY 5 MINUTES) -----------------
-cron.schedule("/5 * * * *", async ()=>{
+cron.schedule("/5 * * * ", async ()=>{
 console.log("🔁 Auto Prediction Check Running...");
 const matches = await getTodayMatches();
 for(let m of matches){
@@ -156,7 +149,7 @@ console.log("👤 SSE Client Connected");
 
 const sendUpdates = async ()=>{
 try{
-const preds = await Prediction.find().sort({created_at:-1}).limit(20);
+const preds = await Prediction.find().sort({created_at:-1}).limit(200);
 const formatted = preds.map(p=>({
 home:p.teams.split(" vs ")[0],
 away:p.teams.split(" vs ")[1],
@@ -173,12 +166,13 @@ res.write(data: ${JSON.stringify({error:err.message})}\\n\\n);
 }
 };
 
-const interval = setInterval(sendUpdates,5000);
+sendUpdates();
+const interval = setInterval(sendUpdates,5601000); // every 5 minutes
 req.on("close",()=>{ clearInterval(interval); console.log("❌ SSE Client Disconnected"); });
 });
 
 // ----------------- API -----------------
-app.get("/prediction", async (req,res)=>{ const preds=await Prediction.find().sort({created_at:-1}).limit(20); res.json(preds); });
+app.get("/prediction", async (req,res)=>{ const preds=await Prediction.find().sort({created_at:-1}).limit(200); res.json(preds); });
 app.get("/today-matches", async (req,res)=>{ const matches = await getTodayMatches(); res.json(matches); });
 
 // ----------------- STATIC FRONTEND -----------------
