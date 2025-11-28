@@ -1,4 +1,6 @@
-// server.js - Professional Dual API Live Prediction System
+
+
+// server.js - Pro-Level Dual API + Debug Version
 import express from "express";
 import axios from "axios";
 import mongoose from "mongoose";
@@ -11,19 +13,16 @@ const app = express();
 app.use(cors());
 const PORT = process.env.PORT || 8080;
 
-// ----------------- MONGODB -----------------
+// ----------------- MONGO -----------------
 const MONGO_URL = process.env.MONGO_PUBLIC_URL;
 if (!MONGO_URL) {
   console.error("❌ MONGO_PUBLIC_URL missing");
   process.exit(1);
 }
 
-mongoose.connect(MONGO_URL, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-.then(() => console.log("✔ MongoDB Connected"))
-.catch(err => console.log("❌ Mongo Error:", err));
+mongoose.connect(MONGO_URL, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log("✔ MongoDB Connected"))
+  .catch(err => console.error("❌ Mongo Error:", err));
 
 // ----------------- SCHEMA -----------------
 const PredictionSchema = new mongoose.Schema({
@@ -43,13 +42,10 @@ const Prediction = mongoose.model("Prediction", PredictionSchema);
 
 // ----------------- API KEYS -----------------
 const API_FOOTBALL_KEY = process.env.API_FOOTBALL_KEY;
-if (!API_FOOTBALL_KEY) {
-  console.error("❌ API_FOOTBALL_KEY missing");
-  process.exit(1);
-}
 const FOOTBALL_DATA_KEY = process.env.FOOTBALL_DATA_KEY;
-if (!FOOTBALL_DATA_KEY) {
-  console.error("❌ FOOTBALL_DATA_KEY missing");
+
+if (!API_FOOTBALL_KEY || !FOOTBALL_DATA_KEY) {
+  console.error("❌ API keys missing");
   process.exit(1);
 }
 
@@ -57,8 +53,9 @@ if (!FOOTBALL_DATA_KEY) {
 async function fetchLiveMatches() {
   const todayUTC = new Date().toISOString().split("T")[0];
   let matches = [];
+  let fetchedFrom = "";
 
-  // 1️⃣ API-Football primary
+  // ----- API-Football Primary -----
   try {
     const resAF = await axios.get("https://v3.football.api-sports.io/fixtures", {
       headers: { "x-apisports-key": API_FOOTBALL_KEY },
@@ -75,14 +72,16 @@ async function fetchLiveMatches() {
         status: m.fixture.status.short,
         sourceAPI: "API-Football"
       })));
-      console.log(`✔ Fetched ${afMatches.length} matches from API-Football`);
+      fetchedFrom = "API-Football";
+      console.log(`✔ [API-Football] Fetched ${afMatches.length} live matches`);
       return matches;
     }
+    console.warn("⚠ [API-Football] No live matches today");
   } catch (err) {
-    console.warn("⚠ API-Football failed:", err.message);
+    console.warn("⚠ [API-Football] Error fetching matches:", err.message);
   }
 
-  // 2️⃣ football-data.org fallback
+  // ----- football-data.org Fallback -----
   try {
     const resFD = await axios.get("https://api.football-data.org/v4/matches", {
       headers: { "X-Auth-Token": FOOTBALL_DATA_KEY },
@@ -99,12 +98,16 @@ async function fetchLiveMatches() {
         status: m.status,
         sourceAPI: "football-data.org"
       })));
-      console.log(`✔ Fetched ${fdMatches.length} matches from football-data.org`);
+      fetchedFrom = "football-data.org";
+      console.log(`✔ [football-data.org] Fetched ${fdMatches.length} live matches`);
+    } else {
+      console.warn("⚠ [football-data.org] No live matches today");
     }
   } catch (err) {
-    console.error("❌ football-data.org failed:", err.message);
+    console.error("❌ [football-data.org] Error fetching matches:", err.message);
   }
 
+  console.log(`📊 Total matches fetched: ${matches.length} | Source: ${fetchedFrom || "None"}`);
   return matches;
 }
 
@@ -158,9 +161,8 @@ async function makePrediction(match) {
 }
 
 // ----------------- CRON JOBS -----------------
-
-// Fetch live matches every 15 min
 cron.schedule("*/15 * * * *", async () => {
+  console.log("🕒 Cron: Fetching live matches...");
   const matches = await fetchLiveMatches();
   for (const m of matches) {
     const existing = await Prediction.findOne({ match_id: m.fixture.id });
@@ -171,8 +173,8 @@ cron.schedule("*/15 * * * *", async () => {
   }
 });
 
-// Update predictions every 5 min
 cron.schedule("*/5 * * * *", async () => {
+  console.log("🕒 Cron: Updating predictions...");
   const matches = await Prediction.find();
   for (const m of matches) {
     const updatedPred = await makePrediction({
