@@ -1,76 +1,134 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Live Football Predictions</title>
-  <style>
-    body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
-    h1 { text-align: center; color: #333; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #fff; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
-    th { background: #333; color: #fff; }
-    tr:nth-child(even) { background: #f9f9f9; }
-    .source { font-size: 0.85em; color: #555; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚽ Pro-Level Live Predictions</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #f4f4f9; color: #333; }
+        .container { max-width: 1200px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
+        h1 { color: #0056b3; text-align: center; margin-bottom: 20px; border-bottom: 2px solid #0056b3; padding-bottom: 10px; }
+        #status { text-align: center; margin-bottom: 15px; font-weight: bold; }
+        .match-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .match-table th, .match-table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        .match-table th { background-color: #0056b3; color: white; position: sticky; top: 0; }
+        .match-table tr:nth-child(even) { background-color: #f9f9f9; }
+        .prediction-cell { font-size: 0.9em; white-space: pre-wrap; }
+        .prob-bar { height: 10px; background-color: #f3f3f3; margin-top: 5px; border-radius: 5px; overflow: hidden; }
+        .prob-fill { background-color: #28a745; height: 100%; }
+        .strong-market { background-color: #ffc107; padding: 3px 6px; border-radius: 4px; font-weight: bold; color: #333; margin: 2px 0; display: inline-block; }
+    </style>
 </head>
 <body>
-  <h1>Live Football Predictions</h1>
-  <table id="predictions-table">
-    <thead>
-      <tr>
-        <th>League</th>
-        <th>Teams</th>
-        <th>Winner %</th>
-        <th>BTTS %</th>
-        <th>Over/Under</th>
-        <th>Last 10 min %</th>
-        <th>xG (H/A/T)</th>
-        <th>Strong Markets</th>
-        <th>Source API</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+    <div class="container">
+        <h1>⚽ Live Football Predictions</h1>
+        <p id="status">Connecting to live updates... (Updates every 5 minutes)</p>
+        <table class="match-table">
+            <thead>
+                <tr>
+                    <th style="width: 20%;">Match / League</th>
+                    <th style="width: 10%;">Status / Time</th>
+                    <th style="width: 15%;">Winner Prob. (H/D/A)</th>
+                    <th style="width: 15%;">BTTS / Last 10</th>
+                    <th style="width: 25%;">Strong Markets (>=80%)</th>
+                    <th style="width: 15%;">xG Total</th>
+                </tr>
+            </thead>
+            <tbody id="prediction-body">
+                <tr><td colspan="6" style="text-align: center;">Waiting for first data push...</td></tr>
+            </tbody>
+        </table>
+    </div>
 
-  <script>
-    const tableBody = document.querySelector("#predictions-table tbody");
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const statusElement = document.getElementById('status');
+            const tableBody = document.getElementById('prediction-body');
+            
+            // Server-Sent Events (SSE) setup
+            const eventSource = new EventSource('/events');
 
-    function renderPredictions(preds) {
-      tableBody.innerHTML = "";
-      preds.forEach(p => {
-        const overUnderText = Object.entries(p.overUnder || {}).map(([k,v]) => `${k}: ${v}%`).join("<br>");
-        const strongMarketsText = (p.strongMarkets || []).map(s => `${s.market} (${s.prob}%)`).join(", ") || "-";
+            eventSource.onopen = () => {
+                statusElement.innerHTML = `✅ **Connected!** Last update: ${new Date().toLocaleTimeString()}`;
+            };
 
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td>${p.league}</td>
-          <td>${p.teams}</td>
-          <td>H:${p.winnerProb.home}% | D:${p.winnerProb.draw}% | A:${p.winnerProb.away}%</td>
-          <td>${p.bttsProb}%</td>
-          <td>${overUnderText}</td>
-          <td>${p.last10Prob}%</td>
-          <td>${p.xG.home} / ${p.xG.away} / ${p.xG.total}</td>
-          <td>${strongMarketsText}</td>
-          <td class="source">${p.sourceAPI}</td>
-        `;
-        tableBody.appendChild(row);
-      });
-    }
+            eventSource.onerror = (err) => {
+                console.error("SSE Error:", err);
+                statusElement.innerHTML = `❌ **Connection Error.** Trying to reconnect...`;
+            };
 
-    // ---------------- SSE ----------------
-    const evtSource = new EventSource("/events");
-    evtSource.onmessage = function(event) {
-      const data = JSON.parse(event.data);
-      if (data.matches) renderPredictions(data.matches);
-    };
-    evtSource.onerror = function(err) {
-      console.error("SSE connection error:", err);
-      evtSource.close();
-      // Try reconnect in 10 sec
-      setTimeout(() => {
-        location.reload();
-      }, 10000);
-    };
-  </script>
+            eventSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.error) {
+                        console.error("Server Data Error:", data.error);
+                        statusElement.innerHTML = `⚠️ **Server Error.** Last update failed.`;
+                        return;
+                    }
+
+                    if (!data.matches || data.matches.length === 0) {
+                        tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center;">No live matches found or predictions generated.</td></tr>';
+                        return;
+                    }
+
+                    renderTable(data.matches);
+                    statusElement.innerHTML = `✅ **Updated!** ${data.matches.length} predictions loaded. Next update: ${new Date(data.ts + 5 * 60 * 1000).toLocaleTimeString()}`;
+
+                } catch (e) {
+                    console.error("Failed to parse SSE data:", e);
+                    statusElement.innerHTML = `❌ **Data Parse Error.** Last update failed.`;
+                }
+            };
+
+            function renderTable(matches) {
+                tableBody.innerHTML = '';
+                
+                matches.forEach(match => {
+                    // Winner Probabilities
+                    const wp = match.winnerProb;
+                    const winnerProbHtml = `
+                        Home: <strong>${wp.home}%</strong>, Draw: <strong>${wp.draw}%</strong>, Away: <strong>${wp.away}%</strong>
+                    `;
+
+                    // Strong Markets
+                    const strongMarketsHtml = match.strongMarkets.map(m => 
+                        `<span class="strong-market">${m.market}: ${m.prob}%</span>`
+                    ).join('');
+
+                    // Status
+                    let statusText = match.status;
+                    if (match.status === '1H' || match.status === '2H' || match.status === 'ET') {
+                        statusText = `${match.status} (${match.elapsed}')`;
+                    }
+                    const scoreText = match.score ? `(${match.score.home} - ${match.score.away})` : '';
+                    
+                    const row = `
+                        <tr>
+                            <td>
+                                <strong>${match.teams}</strong><br>
+                                <small>${match.league}</small>
+                            </td>
+                            <td>
+                                <strong>${statusText}</strong> ${scoreText}<br>
+                                <small>${match.date}</small>
+                            </td>
+                            <td class="prediction-cell">${winnerProbHtml}</td>
+                            <td class="prediction-cell">
+                                BTTS: <strong>${match.bttsProb}%</strong><br>
+                                Last 10 Min Goal: <strong>${match.last10Prob}%</strong>
+                            </td>
+                            <td class="prediction-cell">${strongMarketsHtml || 'N/A'}</td>
+                            <td>
+                                <strong>${match.xG.total}</strong><br>
+                                <small>(${match.xG.home} H | ${match.xG.away} A)</small>
+                            </td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML += row;
+                });
+            }
+        });
+    </script>
 </body>
 </html>
