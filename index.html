@@ -1,75 +1,46 @@
 
 
 
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Live Football Predictions</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    h1 { text-align: center; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
-    th { background: #f4f4f4; }
-    .strong { font-weight: bold; color: darkgreen; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Football Predictions Live</title>
+<style>
+body { font-family: Arial, sans-serif; background:#f4f4f4; padding:20px; }
+h1 { text-align:center; }
+.match { background:white; padding:15px; margin:10px auto; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.2); max-width:600px; }
+h2 { margin:0 0 5px 0; font-size:18px; }
+.prob { font-size:14px; margin:3px 0; }
+.overunder, .strong { margin-top:5px; font-size:13px; }
+</style>
 </head>
 <body>
-  <h1>Live Football Predictions (Updated every 5 min)</h1>
-  <div id="lastUpdated"></div>
-  <table>
-    <thead>
-      <tr>
-        <th>Match</th>
-        <th>Home Win %</th>
-        <th>Draw %</th>
-        <th>Away Win %</th>
-        <th>BTTS %</th>
-        <th>Last 10 Min Prob %</th>
-      </tr>
-    </thead>
-    <tbody id="predictionsBody"></tbody>
-  </table>
+<h1>⚽ Live Football Predictions</h1>
+<div id="matches"></div>
 
-  <script>
-    const predictionsBody = document.getElementById("predictionsBody");
-    const lastUpdated = document.getElementById("lastUpdated");
+<script>
+// SSE Connection
+const evtSource = new EventSource("/events");
+evtSource.onmessage = function(event) {
+    const data = JSON.parse(event.data);
+    const container = document.getElementById("matches");
+    container.innerHTML = "";
 
-    function renderPredictions(matches) {
-      predictionsBody.innerHTML = "";
-      matches.forEach(m => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td>${m.home} vs ${m.away}</td>
-          <td class="${m.winnerProb.home >= 85 ? 'strong' : ''}">${m.winnerProb.home}%</td>
-          <td>${m.winnerProb.draw}%</td>
-          <td class="${m.winnerProb.away >= 85 ? 'strong' : ''}">${m.winnerProb.away}%</td>
-          <td class="${m.bttsProb >= 85 ? 'strong' : ''}">${m.bttsProb}%</td>
-          <td>${m.last10Prob}%</td>
+    data.matches.forEach(match=>{
+        const div = document.createElement("div");
+        div.className = "match";
+        div.innerHTML = `
+            <h2>${match.home} vs ${match.away} | xG: ${match.xG.total}</h2>
+            <div class="prob">Winner Prob → Home: ${match.winnerProb.home}% | Draw: ${match.winnerProb.draw}% | Away: ${match.winnerProb.away}%</div>
+            <div class="prob">BTTS: ${match.bttsProb}% | Last 10 min goal chance: ${match.last10Prob}%</div>
+            <div class="overunder">Over/Under: ${Object.entries(match.overUnder).map(([k,v])=>`${k}: ${v}%`).join(", ")}</div>
+            <div class="strong">Strong Markets: ${match.strongMarkets.map(m=>`${m.market}(${m.prob}%)`).join(", ")}</div>
         `;
-        predictionsBody.appendChild(row);
-      });
-    }
-
-    const eventSource = new EventSource("/events");
-
-    eventSource.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-      if (data.matches) {
-        renderPredictions(data.matches);
-        const dateStr = new Date(data.ts).toLocaleString();
-        lastUpdated.textContent = `Last updated: ${dateStr}`;
-      } else if (data.error) {
-        lastUpdated.textContent = `Error: ${data.error}`;
-      }
-    };
-
-    eventSource.onerror = () => {
-      lastUpdated.textContent = "Connection lost. Trying to reconnect...";
-    };
-  </script>
+        container.appendChild(div);
+    });
+};
+</script>
 </body>
 </html>
