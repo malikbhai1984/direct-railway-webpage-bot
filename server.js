@@ -1,6 +1,7 @@
 
 
-// server.js - Pro-Level Production Version
+
+// server.js - Dual-API Optimized Version
 import express from "express";
 import axios from "axios";
 import mongoose from "mongoose";
@@ -19,7 +20,6 @@ if (!MONGO_URL) {
   console.error("❌ MONGO_PUBLIC_URL missing");
   process.exit(1);
 }
-
 mongoose.connect(MONGO_URL, {
   useNewUrlParser: true,
   useUnifiedTopology: true
@@ -38,36 +38,68 @@ const PredictionSchema = new mongoose.Schema({
   last10Prob: Number,
   xG: Object,
   strongMarkets: Array,
+  sourceAPI: String,            // <-- API source log
   updated_at: { type: Date, default: Date.now }
 });
 const Prediction = mongoose.model("Prediction", PredictionSchema);
 
-// ----------------- API-Football -----------------
+// ----------------- API KEYS -----------------
+const ALLSPORTS_KEY = process.env.ALL_SPORTS_KEY; // Railway variable
+if (!ALLSPORTS_KEY) {
+  console.error("❌ ALL_SPORTS_KEY missing");
+  process.exit(1);
+}
 const API_FOOTBALL_KEY = process.env.API_FOOTBALL_KEY;
 if (!API_FOOTBALL_KEY) {
   console.error("❌ API_FOOTBALL_KEY missing");
   process.exit(1);
 }
+
+const ALLSPORTS_URL = "https://api.allsportsapi.com/football/";
 const API_FOOTBALL_URL = "https://v3.football.api-sports.io/fixtures";
 
 // ----------------- FETCH LIVE MATCHES -----------------
 async function fetchLiveMatches() {
   try {
     const today = new Date().toISOString().split("T")[0];
-    const res = await axios.get(API_FOOTBALL_URL, {
+    let matches = [];
+
+    // --- ALLSPORTSAPI: Premier League + LaLiga ---
+    const allSportsLeagues = { "Premier League": 39, "LaLiga": 140 };
+    for (const [name, id] of Object.entries(allSportsLeagues)) {
+      const res = await axios.get(`${ALLSPORTS_URL}?met=Fixtures&APIkey=${ALLSPORTS_KEY}&leagueId=${id}&from=${today}&to=${today}`);
+      const data = res.data.result || [];
+      const leagueMatches = data.map(m => ({
+        fixture: { id: m.event_key, date: m.event_date, status: m.event_status },
+        league: { name },
+        teams: { home: { name: m.event_home_team }, away: { name: m.event_away_team } },
+        goals: { home: m.event_final_result.split("-")[0], away: m.event_final_result.split("-")[1] },
+        sourceAPI: "AllSportsAPI"
+      }));
+      console.log(`🔹 [AllSportsAPI] ${name} matches fetched: ${leagueMatches.length}`);
+      matches.push(...leagueMatches);
+    }
+
+    // --- API-FOOTBALL: All other leagues ---
+    const resAF = await axios.get(API_FOOTBALL_URL, {
       headers: { "x-apisports-key": API_FOOTBALL_KEY },
       params: { date: today, live: "all" },
       timeout: 10000
     });
-    const matches = res.data.response || [];
-    console.log(`✔ Live matches fetched: ${matches.length}`);
-    return matches.map(m => ({
+    const afMatches = resAF.data.response || [];
+    const afFiltered = afMatches.map(m => ({
       fixture: m.fixture,
-      teams: m.teams,
       league: m.league,
+      teams: m.teams,
       goals: m.goals,
-      status: m.fixture.status
+      status: m.fixture.status,
+      sourceAPI: "API-Football"
     }));
+    console.log(`🔹 [API-Football] Other leagues matches fetched: ${afFiltered.length}`);
+    matches.push(...afFiltered);
+
+    console.log(`✔ Total live matches fetched: ${matches.length}`);
+    return matches;
   } catch (err) {
     console.error("❌ fetchLiveMatches error:", err.message);
     return [];
@@ -114,6 +146,7 @@ async function makePrediction(match) {
       last10Prob,
       xG: { home: xG_home, away: xG_away, total: xG_total },
       strongMarkets,
+      sourceAPI: match.sourceAPI || "Unknown",
       updated_at: new Date()
     };
   } catch (err) {
@@ -143,7 +176,8 @@ cron.schedule("*/5 * * * *", async () => {
     const updatedPred = await makePrediction({
       fixture: { id: m.match_id },
       teams: { home: { name: m.teams.split(" vs ")[0] }, away: { name: m.teams.split(" vs ")[1] } },
-      league: { name: m.league }
+      league: { name: m.league },
+      sourceAPI: m.sourceAPI
     });
     if (updatedPred) {
       await Prediction.updateOne({ match_id: m.match_id }, updatedPred);
@@ -181,7 +215,7 @@ app.get("/today-matches", async (req, res) => {
 
 // ----------------- SERVE INDEX.HTML -----------------
 app.get("/", (req, res) => {
-  const filePath = path.join(process.cwd(), "index.html"); // root me index.html
+  const filePath = path.join(process.cwd(), "index.html"); 
   fs.readFile(filePath, "utf8", (err, data) => {
     if (err) return res.status(500).send("❌ index.html not found");
     res.setHeader("Content-Type", "text/html");
