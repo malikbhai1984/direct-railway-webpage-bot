@@ -1,87 +1,100 @@
 
 
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<title>Live Football Predictions (PKT)</title>
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚽ Live Auto Predictions (PKT)</title>
 <style>
-body{background:#0b0b0b;color:#fff;font-family:Arial, sans-serif;margin:0;padding:18px;}
-header{text-align:center;margin-bottom:12px}
-.layout{display:flex;gap:18px;align-items:flex-start;max-width:1200px;margin:0 auto;}
-.left{width:38%;background:#111;padding:12px;border-radius:10px;border:1px solid #222;}
-.right{width:62%;background:#0e0f10;padding:12px;border-radius:10px;border:2px solid #00ff90;position:relative;}
-h2{margin:6px 0 12px 0;color:#00ff90}
-.match{padding:8px;border-bottom:1px solid #222;}
-.predCard{padding:10px;margin-bottom:10px;border-radius:8px;background:#151515;transition:all 0.3s;}
-.strong{background:#073;color:#fff;}
-.small{font-size:12px;color:#bbb;}
-.meta{font-size:13px;color:#9cc;margin-bottom:8px;}
-.toast{position:fixed;top:10px;right:10px;background:#00ff90;color:#000;padding:10px 16px;border-radius:6px;box-shadow:0 0 8px #0f0;opacity:0.9;margin-bottom:6px;z-index:999;}
-@media(max-width:900px){.layout{flex-direction:column}.left,.right{width:100%}}
+  body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f4f4f4; }
+  header { background: #222; color: #fff; padding: 15px; text-align: center; font-size: 1.2em; }
+  .container { display: flex; flex-wrap: wrap; padding: 10px; }
+  .box { flex: 1; min-width: 300px; background: #fff; margin: 5px; padding: 10px; border-radius: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.1); }
+  h2 { margin-top: 0; font-size: 1em; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+  .match, .prediction { margin-bottom: 10px; padding: 5px; border-bottom: 1px solid #eee; }
+  .strong-markets { color: green; font-weight: bold; }
 </style>
 </head>
 <body>
+
 <header>
-<h1>⚽ Live Auto Predictions (PKT)</h1>
-<div class="small">Auto updates every 5 minutes. No reload required.</div>
-<div class="small" style="color:#0f0">Welcome! Auto Prediction Active ✅</div>
+⚽ Live Auto Predictions (PKT) | Auto updates every 5 minutes ✅
 </header>
 
-<div class="layout">
-<div class="left">
-<h2>📅 Today Matches (PKT)</h2>
-<div id="matchList">Loading...</div>
-</div>
-
-<div class="right">
-<h2>🔮 Live Predictions</h2>
-<div id="predList">Waiting for updates...</div>
-</div>
+<div class="container">
+  <div class="box">
+    <h2>📅 Today Matches (PKT)</h2>
+    <div id="todayMatches">Loading...</div>
+  </div>
+  <div class="box">
+    <h2>🔮 Live Predictions</h2>
+    <div id="livePredictions">Waiting for updates...</div>
+  </div>
 </div>
 
 <script>
-async function loadToday(){
-try{
-const r = await fetch('/today-matches');
-const j = await r.json();
-const box = document.getElementById('matchList');
-if(!j.length){ box.innerHTML='<div class="small">No matches today.</div>'; return; }
-let html='';
-j.forEach(m=>{
-html+=<div class="match"><strong>${m.teams.home.name} vs ${m.teams.away.name}</strong>       <div class="small">${m.league.name} • ${new Date(m.fixture.date).toLocaleString()} PKT • ${m.fixture.status.short}</div></div>;
-});
-box.innerHTML = html;
-}catch(e){ console.error(e); document.getElementById('matchList').innerHTML='Fetch error'; }
-}
-loadToday();
-setInterval(loadToday,5601000);
-
-const predBox = document.getElementById('predList');
-const sse = new EventSource('/events');
-sse.onopen = ()=>{ predBox.innerHTML='<div class="small" style="color:#0f0">Connected — waiting for first snapshot...</div>'; };
-sse.onerror = ()=>{ predBox.innerHTML='<div class="small" style="color:#f33">Connection lost. Check backend.</div>'; };
-
-function showToast(message){
-const t = document.createElement('div'); t.className='toast'; t.innerText=message;
-document.body.appendChild(t); setTimeout(()=>t.remove(),5000);
+async function loadTodayMatches() {
+  try {
+    const res = await fetch("/today-matches");
+    const matches = await res.json();
+    const container = document.getElementById("todayMatches");
+    if (!matches.length) {
+      container.innerHTML = "No live matches today.";
+      return;
+    }
+    container.innerHTML = matches.map(m => {
+      const home = m.teams.home.name || "Unknown";
+      const away = m.teams.away.name || "Unknown";
+      const status = m.status ? m.status.short || m.status.long || "" : "";
+      return `<div class="match">${home} vs ${away} (${status})</div>`;
+    }).join("");
+  } catch (err) {
+    console.error(err);
+    document.getElementById("todayMatches").innerHTML = "Failed to load matches.";
+  }
 }
 
-sse.onmessage=(e)=>{
-try{
-const data = JSON.parse(e.data);
-if(!data.matches){ predBox.innerHTML='No data'; return; }
-let html=<div class="meta">Updated: ${new Date(data.ts).toLocaleString()}</div>;
-data.matches.forEach(item=>{
-const strong = (item.strongMarkets && item.strongMarkets.length>0);
-html+=<div class="predCard ${strong?'strong':''}">         <div><strong>${item.home} vs ${item.away}</strong></div>         <div>Winner: Home ${item.winnerProb.home}% • Draw ${item.winnerProb.draw}% • Away ${item.winnerProb.away}%</div>         <div>BTTS: ${item.bttsProb}% • Last10: ${item.last10Prob}%</div>         <div class="small">xG: H:${item.xG.home} A:${item.xG.away} Total:${item.xG.total}</div>         <div class="small">Strong markets: ${item.strongMarkets.map(s=>s.market+'('+s.prob+'%)').join(', ')}</div>       </div>;
-if(strong) showToast(New strong prediction: ${item.home} vs ${item.away});
-});
-predBox.innerHTML = html;
-}catch(err){ console.error(err); predBox.innerHTML='<div class="small" style="color:#f33">Parse error</div>'; }
+// Initial load
+loadTodayMatches();
+// Refresh every 5 minutes
+setInterval(loadTodayMatches, 5 * 60 * 1000);
+
+// ---------------- SSE Live Predictions ----------------
+const evtSource = new EventSource("/events");
+evtSource.onmessage = e => {
+  try {
+    const data = JSON.parse(e.data);
+    const container = document.getElementById("livePredictions");
+    if (!data.matches.length) {
+      container.innerHTML = "No predictions available yet.";
+      return;
+    }
+
+    container.innerHTML = data.matches.map(m => {
+      const teams = m.teams || "Unknown vs Unknown";
+      const winner = m.winnerProb || { home: 0, draw: 0, away: 0 };
+      const btts = m.bttsProb || 0;
+      const last10 = m.last10Prob || 0;
+      const xG = m.xG || { home: 0, away: 0, total: 0 };
+      const strongMarkets = (m.strongMarkets && m.strongMarkets.length) ? 
+        m.strongMarkets.map(s => `${s.market} (${s.prob}%)`).join(", ") : "None";
+
+      return `<div class="prediction">
+        <strong>${teams}</strong><br>
+        Winner: H:${winner.home}% | D:${winner.draw}% | A:${winner.away}%<br>
+        BTTS: ${btts}% | Last 10 min: ${last10}%<br>
+        xG: H:${xG.home}, A:${xG.away}, Total:${xG.total}<br>
+        <span class="strong-markets">Strong Markets: ${strongMarkets}</span>
+      </div>`;
+    }).join("");
+  } catch (err) {
+    console.error("SSE parse error:", err);
+  }
 };
 </script>
+
 </body>
 </html>
