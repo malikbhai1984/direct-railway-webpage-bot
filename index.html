@@ -1,96 +1,76 @@
-
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Football Live Matches & Predictions</title>
-<style>
-body { font-family: Arial; background:#f0f0f0; padding:20px; }
-h1, h2 { text-align:center; }
-table { width:100%; border-collapse:collapse; margin-bottom:30px; }
-th, td { padding:10px; border:1px solid #ccc; text-align:center; }
-th { background:#333; color:white; }
-tr:nth-child(even) { background:#eaeaea; }
-.source { font-size:0.85em; color:#555; }
-.league { font-weight:bold; color:#222; }
-.strong { background:#c3f7c3; } /* green highlight for strong markets */
-</style>
+  <meta charset="UTF-8">
+  <title>Live Football Predictions</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
+    h1 { text-align: center; color: #333; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #fff; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    th { background: #333; color: #fff; }
+    tr:nth-child(even) { background: #f9f9f9; }
+    .source { font-size: 0.85em; color: #555; }
+  </style>
 </head>
 <body>
-<h1>⚽ Today's Matches & Predictions</h1>
+  <h1>Live Football Predictions</h1>
+  <table id="predictions-table">
+    <thead>
+      <tr>
+        <th>League</th>
+        <th>Teams</th>
+        <th>Winner %</th>
+        <th>BTTS %</th>
+        <th>Over/Under</th>
+        <th>Last 10 min %</th>
+        <th>xG (H/A/T)</th>
+        <th>Strong Markets</th>
+        <th>Source API</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
-<h2>Live / Scheduled Matches</h2>
-<table id="matches-table">
-<thead>
-<tr>
-<th>League</th><th>Teams</th><th>Status</th><th>Goals</th><th>Source API</th>
-</tr>
-</thead>
-<tbody></tbody>
-</table>
+  <script>
+    const tableBody = document.querySelector("#predictions-table tbody");
 
-<h2>Predictions</h2>
-<table id="predictions-table">
-<thead>
-<tr>
-<th>League</th><th>Teams</th><th>Winner %</th><th>BTTS %</th><th>Over/Under</th>
-<th>Last 10 min %</th><th>xG (H/A/T)</th><th>Strong Markets</th><th>Source API</th>
-</tr>
-</thead>
-<tbody></tbody>
-</table>
+    function renderPredictions(preds) {
+      tableBody.innerHTML = "";
+      preds.forEach(p => {
+        const overUnderText = Object.entries(p.overUnder || {}).map(([k,v]) => `${k}: ${v}%`).join("<br>");
+        const strongMarketsText = (p.strongMarkets || []).map(s => `${s.market} (${s.prob}%)`).join(", ") || "-";
 
-<script>
-async function fetchMatches() {
-  try {
-    const res = await fetch("/today-matches");
-    const matches = await res.json();
-    const tbody = document.querySelector("#matches-table tbody");
-    tbody.innerHTML = "";
-    matches.forEach(m => {
-      const goals = m.goals ? `${m.goals.home} - ${m.goals.away}` : "-";
-      tbody.innerHTML += `<tr>
-<td class="league">${m.league?.name || "Unknown League"}</td>
-<td>${m.teams.home.name} vs ${m.teams.away.name}</td>
-<td>${m.fixture.status || "-"}</td>
-<td>${goals}</td>
-<td class="source">${m.sourceAPI || "Unknown"}</td>
-</tr>`;
-    });
-  } catch(e) { console.error(e); }
-}
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${p.league}</td>
+          <td>${p.teams}</td>
+          <td>H:${p.winnerProb.home}% | D:${p.winnerProb.draw}% | A:${p.winnerProb.away}%</td>
+          <td>${p.bttsProb}%</td>
+          <td>${overUnderText}</td>
+          <td>${p.last10Prob}%</td>
+          <td>${p.xG.home} / ${p.xG.away} / ${p.xG.total}</td>
+          <td>${strongMarketsText}</td>
+          <td class="source">${p.sourceAPI}</td>
+        `;
+        tableBody.appendChild(row);
+      });
+    }
 
-async function fetchPredictions() {
-  try {
-    const res = await fetch("/prediction");
-    const preds = await res.json();
-    const tbody = document.querySelector("#predictions-table tbody");
-    tbody.innerHTML = "";
-    preds.forEach(p => {
-      const winner = `H:${p.winnerProb.home}% | D:${p.winnerProb.draw}% | A:${p.winnerProb.away}%`;
-      const overUnder = Object.entries(p.overUnder).map(([k,v])=>`${k}: ${v}%`).join("<br>");
-      const xG = `${p.xG.home} / ${p.xG.away} / ${p.xG.total}`;
-      const strong = p.strongMarkets.length ? p.strongMarkets.map(s => `<span class="strong">${s.market} (${s.prob}%)</span>`).join("<br>") : "-";
-      tbody.innerHTML += `<tr>
-<td class="league">${p.league}</td>
-<td>${p.teams}</td>
-<td>${winner}</td>
-<td>${p.bttsProb}%</td>
-<td>${overUnder}</td>
-<td>${p.last10Prob}%</td>
-<td>${xG}</td>
-<td>${strong}</td>
-<td class="source">${p.sourceAPI}</td>
-</tr>`;
-    });
-  } catch(e){ console.error(e); }
-}
-
-// Auto-refresh every 5 min
-fetchMatches(); fetchPredictions();
-setInterval(()=>{ fetchMatches(); fetchPredictions(); }, 5*60*1000);
-</script>
+    // ---------------- SSE ----------------
+    const evtSource = new EventSource("/events");
+    evtSource.onmessage = function(event) {
+      const data = JSON.parse(event.data);
+      if (data.matches) renderPredictions(data.matches);
+    };
+    evtSource.onerror = function(err) {
+      console.error("SSE connection error:", err);
+      evtSource.close();
+      // Try reconnect in 10 sec
+      setTimeout(() => {
+        location.reload();
+      }, 10000);
+    };
+  </script>
 </body>
 </html>
