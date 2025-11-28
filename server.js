@@ -1,6 +1,7 @@
 
 
-// server.js - Pro-Level Dual API + Debug Version
+
+// server.js - Full Debug-Ready Version
 import express from "express";
 import axios from "axios";
 import mongoose from "mongoose";
@@ -78,7 +79,7 @@ async function fetchLiveMatches() {
     }
     console.warn("⚠ [API-Football] No live matches today");
   } catch (err) {
-    console.warn("⚠ [API-Football] Error fetching matches:", err.message);
+    console.warn("⚠ [API-Football] Error:", err.message);
   }
 
   // ----- football-data.org Fallback -----
@@ -104,10 +105,11 @@ async function fetchLiveMatches() {
       console.warn("⚠ [football-data.org] No live matches today");
     }
   } catch (err) {
-    console.error("❌ [football-data.org] Error fetching matches:", err.message);
+    console.error("❌ [football-data.org] Error:", err.message);
   }
 
   console.log(`📊 Total matches fetched: ${matches.length} | Source: ${fetchedFrom || "None"}`);
+  matches.forEach(m => console.log(`[${m.sourceAPI}] ${m.teams.home.name} vs ${m.teams.away.name}`));
   return matches;
 }
 
@@ -187,6 +189,14 @@ cron.schedule("*/5 * * * *", async () => {
   }
 });
 
+// ----------------- TEMPORARY DEBUG ROUTE -----------------
+app.get("/debug-fetch", async (req, res) => {
+  console.log("🟢 Manual debug: fetching live matches...");
+  const matches = await fetchLiveMatches();
+  console.log("🟢 Matches fetched:", matches.length);
+  res.json({ total: matches.length, matches });
+});
+
 // ----------------- SSE -----------------
 app.get("/events", async (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
@@ -201,7 +211,6 @@ app.get("/events", async (req, res) => {
 
   await sendUpdates();
   const interval = setInterval(sendUpdates, 5 * 60 * 1000);
-
   req.on("close", () => clearInterval(interval));
 });
 
@@ -226,6 +235,4 @@ app.get("/", (req, res) => {
 });
 
 // ----------------- START SERVER -----------------
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
