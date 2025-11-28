@@ -1,7 +1,7 @@
 
 
 
-// server.js - Dual-API Fully Fixed (Live + Scheduled + League Display)
+// server.js - Dual-API Fully Fixed (Live + Scheduled + League + SourceAPI)
 import express from "express";
 import axios from "axios";
 import mongoose from "mongoose";
@@ -16,16 +16,10 @@ const PORT = process.env.PORT || 8080;
 
 // ----------------- MONGODB -----------------
 const MONGO_URL = process.env.MONGO_PUBLIC_URL;
-if (!MONGO_URL) {
-  console.error("❌ MONGO_PUBLIC_URL missing");
-  process.exit(1);
-}
-mongoose.connect(MONGO_URL, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-.then(() => console.log("✔ MongoDB Connected"))
-.catch(err => console.log("❌ Mongo Error:", err));
+if (!MONGO_URL) { console.error("❌ MONGO_PUBLIC_URL missing"); process.exit(1); }
+mongoose.connect(MONGO_URL, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log("✔ MongoDB Connected"))
+  .catch(err => console.log("❌ Mongo Error:", err));
 
 // ----------------- SCHEMA -----------------
 const PredictionSchema = new mongoose.Schema({
@@ -38,22 +32,16 @@ const PredictionSchema = new mongoose.Schema({
   last10Prob: Number,
   xG: Object,
   strongMarkets: Array,
-  sourceAPI: String,            // API source log
+  sourceAPI: String,
   updated_at: { type: Date, default: Date.now }
 });
 const Prediction = mongoose.model("Prediction", PredictionSchema);
 
 // ----------------- API KEYS -----------------
 const ALLSPORTS_KEY = process.env.ALL_SPORTS_KEY;
-if (!ALLSPORTS_KEY) {
-  console.error("❌ ALL_SPORTS_KEY missing");
-  process.exit(1);
-}
+if (!ALLSPORTS_KEY) { console.error("❌ ALL_SPORTS_KEY missing"); process.exit(1); }
 const API_FOOTBALL_KEY = process.env.API_FOOTBALL_KEY;
-if (!API_FOOTBALL_KEY) {
-  console.error("❌ API_FOOTBALL_KEY missing");
-  process.exit(1);
-}
+if (!API_FOOTBALL_KEY) { console.error("❌ API_FOOTBALL_KEY missing"); process.exit(1); }
 
 const ALLSPORTS_URL = "https://api.allsportsapi.com/football/";
 const API_FOOTBALL_URL = "https://v3.football.api-sports.io/fixtures";
@@ -61,11 +49,7 @@ const API_FOOTBALL_URL = "https://v3.football.api-sports.io/fixtures";
 // ----------------- FETCH LIVE + TODAY MATCHES -----------------
 async function fetchLiveMatches() {
   try {
-    // UTC date
     const todayUTC = new Date().toISOString().split("T")[0];
-    // PKT timezone conversion
-    const todayPKT = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Karachi" }))
-      .toISOString().split("T")[0];
 
     let matches = [];
 
@@ -78,7 +62,7 @@ async function fetchLiveMatches() {
         fixture: { id: m.event_key, date: m.event_date, status: m.event_status },
         league: { name },
         teams: { home: { name: m.event_home_team }, away: { name: m.event_away_team } },
-        goals: { home: m.event_final_result.split("-")[0], away: m.event_final_result.split("-")[1] },
+        goals: m.event_final_result ? { home: m.event_final_result.split("-")[0], away: m.event_final_result.split("-")[1] } : { home: "-", away: "-" },
         sourceAPI: "AllSportsAPI"
       }));
       console.log(`🔹 [AllSportsAPI] ${name} matches fetched: ${leagueMatches.length}`);
@@ -88,16 +72,13 @@ async function fetchLiveMatches() {
     // --- API-FOOTBALL: All other leagues ---
     const resAF = await axios.get(API_FOOTBALL_URL, {
       headers: { "x-apisports-key": API_FOOTBALL_KEY },
-      params: {
-        date: todayUTC,       // use UTC date
-        season: 2025          // current season
-      },
+      params: { date: todayUTC, season: 2025 },
       timeout: 10000
     });
     const afMatches = resAF.data.response || [];
     const afFiltered = afMatches.map(m => ({
       fixture: m.fixture,
-      league: m.league,
+      league: m.league || { name: "Unknown League" },
       teams: m.teams,
       goals: m.goals,
       status: m.fixture.status.short,
@@ -146,7 +127,7 @@ async function makePrediction(match) {
 
     return {
       match_id: String(match.fixture.id),
-      league: match.league.name,
+      league: match.league?.name || "Unknown League",
       teams: `${home} vs ${away}`,
       winnerProb: { home: homeProb, draw: drawProb, away: awayProb },
       bttsProb,
@@ -170,11 +151,8 @@ cron.schedule("*/15 * * * *", async () => {
     const existing = await Prediction.findOne({ match_id: m.fixture.id });
     const pred = await makePrediction(m);
     if (!pred) continue;
-    if (existing) {
-      await Prediction.updateOne({ match_id: m.fixture.id }, pred);
-    } else {
-      await Prediction.create(pred);
-    }
+    if (existing) await Prediction.updateOne({ match_id: m.fixture.id }, pred);
+    else await Prediction.create(pred);
   }
 });
 
@@ -187,9 +165,7 @@ cron.schedule("*/5 * * * *", async () => {
       league: { name: m.league },
       sourceAPI: m.sourceAPI
     });
-    if (updatedPred) {
-      await Prediction.updateOne({ match_id: m.match_id }, updatedPred);
-    }
+    if (updatedPred) await Prediction.updateOne({ match_id: m.match_id }, updatedPred);
   }
 });
 
@@ -204,10 +180,8 @@ app.get("/events", async (req, res) => {
     const preds = await Prediction.find().sort({ updated_at: -1 }).limit(200);
     res.write(`data: ${JSON.stringify({ ts: Date.now(), matches: preds })}\n\n`);
   };
-
   await sendUpdates();
   const interval = setInterval(sendUpdates, 5 * 60 * 1000);
-
   req.on("close", () => clearInterval(interval));
 });
 
@@ -223,7 +197,7 @@ app.get("/today-matches", async (req, res) => {
 
 // ----------------- SERVE INDEX.HTML -----------------
 app.get("/", (req, res) => {
-  const filePath = path.join(process.cwd(), "index.html"); 
+  const filePath = path.join(process.cwd(), "index.html");
   fs.readFile(filePath, "utf8", (err, data) => {
     if (err) return res.status(500).send("❌ index.html not found");
     res.setHeader("Content-Type", "text/html");
@@ -232,6 +206,4 @@ app.get("/", (req, res) => {
 });
 
 // ----------------- START SERVER -----------------
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
