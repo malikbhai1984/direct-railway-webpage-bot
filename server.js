@@ -1,12 +1,10 @@
-
-
-
-// server.js - Pro-Level Production Version
 import express from "express";
 import axios from "axios";
 import mongoose from "mongoose";
 import cron from "node-cron";
 import cors from "cors";
+import fs from "fs";
+import path from "path";
 
 const app = express();
 app.use(cors());
@@ -79,7 +77,6 @@ async function makePrediction(match) {
     const home = match.teams.home.name;
     const away = match.teams.away.name;
 
-    // simple heuristic
     const xG_home = Number((Math.random() * 2 + 0.5).toFixed(2));
     const xG_away = Number((Math.random() * 2 + 0.5).toFixed(2));
     const xG_total = Number((xG_home + xG_away).toFixed(2));
@@ -122,51 +119,50 @@ async function makePrediction(match) {
   }
 }
 
-// ----------------- CRON: FETCH & UPDATE -----------------
-
-// 1) Fetch live matches every 15 min & save/update in DB
+// ----------------- CRON JOBS -----------------
 cron.schedule("*/15 * * * *", async () => {
   console.log("🔁 Fetch Live Matches Running...");
   const matches = await fetchLiveMatches();
   for (const m of matches) {
-    const existing = await Prediction.findOne({ match_id: m.fixture.id });
     const pred = await makePrediction(m);
     if (!pred) continue;
-    if (existing) {
-      await Prediction.updateOne({ match_id: m.fixture.id }, pred);
-      console.log("🔄 Prediction Updated:", pred.teams);
-    } else {
-      await Prediction.create(pred);
-      console.log("✔ Prediction Saved:", pred.teams);
-    }
+    await Prediction.updateOne({ match_id: m.fixture.id }, pred, { upsert: true });
+    console.log("🔄 Prediction Upserted:", pred.teams);
   }
 });
 
-// 2) Update predictions every 5 min using DB data
 cron.schedule("*/5 * * * *", async () => {
   console.log("🔁 Auto Prediction Refresh Running...");
   const matches = await Prediction.find();
   for (const m of matches) {
     const updatedPred = await makePrediction({
       fixture: { id: m.match_id },
-      teams: { home: { name: m.teams.split(" vs ")[0] }, away: { name: m.teams.split(" vs ")[1] } },
+      teams: {
+        home: { name: m.teams.split(" vs ")[0] },
+        away: { name: m.teams.split(" vs ")[1] }
+      },
       league: { name: m.league }
     });
-    if (updatedPred) {
-      await Prediction.updateOne({ match_id: m.match_id }, updatedPred);
-      console.log("🔄 Prediction Refreshed:", m.teams);
-    }
+    if (updatedPred) await Prediction.updateOne({ match_id: m.match_id }, updatedPred);
   }
 });
 
-// ----------------- SSE Live Endpoint -----------------
+// ----------------- SINGLE INDEX.HTML -----------------
+app.get("/", (req, res) => {
+  const htmlPath = path.join(process.cwd(), "index.html");
+  fs.readFile(htmlPath, "utf8", (err, data) => {
+    if (err) return res.status(500).send("❌ index.html not found");
+    res.setHeader("Content-Type", "text/html");
+    res.send(data);
+  });
+});
+
+// ----------------- SSE LIVE UPDATES -----------------
 app.get("/events", async (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
-
-  console.log("👤 SSE Client Connected");
 
   const sendUpdates = async () => {
     const preds = await Prediction.find().sort({ updated_at: -1 }).limit(200);
@@ -176,10 +172,7 @@ app.get("/events", async (req, res) => {
   await sendUpdates();
   const interval = setInterval(sendUpdates, 5 * 60 * 1000);
 
-  req.on("close", () => {
-    clearInterval(interval);
-    console.log("❌ SSE Client Disconnected");
-  });
+  req.on("close", () => clearInterval(interval));
 });
 
 // ----------------- API ROUTES -----------------
@@ -187,12 +180,5 @@ app.get("/prediction", async (req, res) => {
   const preds = await Prediction.find().sort({ updated_at: -1 }).limit(200);
   res.json(preds);
 });
-app.get("/today-matches", async (req, res) => {
-  const matches = await fetchLiveMatches();
-  res.json(matches);
-});
 
-// ----------------- START SERVER -----------------
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+app.get("/to
