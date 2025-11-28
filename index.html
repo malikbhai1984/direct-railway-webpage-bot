@@ -1,100 +1,111 @@
 
 
 
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>⚽ Live Auto Predictions (PKT)</title>
-<style>
-  body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f4f4f4; }
-  header { background: #222; color: #fff; padding: 15px; text-align: center; font-size: 1.2em; }
-  .container { display: flex; flex-wrap: wrap; padding: 10px; }
-  .box { flex: 1; min-width: 300px; background: #fff; margin: 5px; padding: 10px; border-radius: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.1); }
-  h2 { margin-top: 0; font-size: 1em; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
-  .match, .prediction { margin-bottom: 10px; padding: 5px; border-bottom: 1px solid #eee; }
-  .strong-markets { color: green; font-weight: bold; }
-</style>
+  <meta charset="UTF-8">
+  <title>Football Live Matches & Predictions</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f0f0f0; padding: 20px; }
+    h1 { text-align: center; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+    th, td { padding: 10px; border: 1px solid #ccc; text-align: center; }
+    th { background: #333; color: white; }
+    tr:nth-child(even) { background: #eaeaea; }
+    .source { font-size: 0.85em; color: #555; }
+    .league { font-weight: bold; color: #222; }
+  </style>
 </head>
 <body>
+  <h1>⚽ Today's Matches & Predictions</h1>
 
-<header>
-⚽ Live Auto Predictions (PKT) | Auto updates every 5 minutes ✅
-</header>
+  <h2>Live / Scheduled Matches</h2>
+  <table id="matches-table">
+    <thead>
+      <tr>
+        <th>League</th>
+        <th>Teams</th>
+        <th>Status</th>
+        <th>Goals</th>
+        <th>Source API</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
-<div class="container">
-  <div class="box">
-    <h2>📅 Today Matches (PKT)</h2>
-    <div id="todayMatches">Loading...</div>
-  </div>
-  <div class="box">
-    <h2>🔮 Live Predictions</h2>
-    <div id="livePredictions">Waiting for updates...</div>
-  </div>
-</div>
+  <h2>Predictions</h2>
+  <table id="predictions-table">
+    <thead>
+      <tr>
+        <th>League</th>
+        <th>Teams</th>
+        <th>Winner %</th>
+        <th>BTTS %</th>
+        <th>Over/Under</th>
+        <th>Last 10 min %</th>
+        <th>xG (H/A/T)</th>
+        <th>Strong Markets</th>
+        <th>Source API</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
-<script>
-async function loadTodayMatches() {
-  try {
-    const res = await fetch("/today-matches");
-    const matches = await res.json();
-    const container = document.getElementById("todayMatches");
-    if (!matches.length) {
-      container.innerHTML = "No live matches today.";
-      return;
+  <script>
+    async function fetchMatches() {
+      try {
+        const res = await fetch("/today-matches");
+        const matches = await res.json();
+        const tbody = document.querySelector("#matches-table tbody");
+        tbody.innerHTML = "";
+        matches.forEach(m => {
+          const goals = m.goals ? `${m.goals.home} - ${m.goals.away}` : "-";
+          tbody.innerHTML += `
+            <tr>
+              <td class="league">${m.league.name}</td>
+              <td>${m.teams.home.name} vs ${m.teams.away.name}</td>
+              <td>${m.fixture.status || "-"}</td>
+              <td>${goals}</td>
+              <td class="source">${m.sourceAPI || "-"}</td>
+            </tr>
+          `;
+        });
+      } catch(e) { console.error(e); }
     }
-    container.innerHTML = matches.map(m => {
-      const home = m.teams.home.name || "Unknown";
-      const away = m.teams.away.name || "Unknown";
-      const status = m.status ? m.status.short || m.status.long || "" : "";
-      return `<div class="match">${home} vs ${away} (${status})</div>`;
-    }).join("");
-  } catch (err) {
-    console.error(err);
-    document.getElementById("todayMatches").innerHTML = "Failed to load matches.";
-  }
-}
 
-// Initial load
-loadTodayMatches();
-// Refresh every 5 minutes
-setInterval(loadTodayMatches, 5 * 60 * 1000);
-
-// ---------------- SSE Live Predictions ----------------
-const evtSource = new EventSource("/events");
-evtSource.onmessage = e => {
-  try {
-    const data = JSON.parse(e.data);
-    const container = document.getElementById("livePredictions");
-    if (!data.matches.length) {
-      container.innerHTML = "No predictions available yet.";
-      return;
+    async function fetchPredictions() {
+      try {
+        const res = await fetch("/prediction");
+        const preds = await res.json();
+        const tbody = document.querySelector("#predictions-table tbody");
+        tbody.innerHTML = "";
+        preds.forEach(p => {
+          const winner = `H:${p.winnerProb.home}% | D:${p.winnerProb.draw}% | A:${p.winnerProb.away}%`;
+          const overUnder = Object.entries(p.overUnder).map(([k,v])=>`${k}: ${v}%`).join("<br>");
+          const xG = `${p.xG.home} / ${p.xG.away} / ${p.xG.total}`;
+          const strong = p.strongMarkets.length ? p.strongMarkets.map(s => `${s.market} (${s.prob}%)`).join("<br>") : "-";
+          tbody.innerHTML += `
+            <tr>
+              <td class="league">${p.league}</td>
+              <td>${p.teams}</td>
+              <td>${winner}</td>
+              <td>${p.bttsProb}%</td>
+              <td>${overUnder}</td>
+              <td>${p.last10Prob}%</td>
+              <td>${xG}</td>
+              <td>${strong}</td>
+              <td class="source">${p.sourceAPI}</td>
+            </tr>
+          `;
+        });
+      } catch(e) { console.error(e); }
     }
 
-    container.innerHTML = data.matches.map(m => {
-      const teams = m.teams || "Unknown vs Unknown";
-      const winner = m.winnerProb || { home: 0, draw: 0, away: 0 };
-      const btts = m.bttsProb || 0;
-      const last10 = m.last10Prob || 0;
-      const xG = m.xG || { home: 0, away: 0, total: 0 };
-      const strongMarkets = (m.strongMarkets && m.strongMarkets.length) ? 
-        m.strongMarkets.map(s => `${s.market} (${s.prob}%)`).join(", ") : "None";
-
-      return `<div class="prediction">
-        <strong>${teams}</strong><br>
-        Winner: H:${winner.home}% | D:${winner.draw}% | A:${winner.away}%<br>
-        BTTS: ${btts}% | Last 10 min: ${last10}%<br>
-        xG: H:${xG.home}, A:${xG.away}, Total:${xG.total}<br>
-        <span class="strong-markets">Strong Markets: ${strongMarkets}</span>
-      </div>`;
-    }).join("");
-  } catch (err) {
-    console.error("SSE parse error:", err);
-  }
-};
-</script>
-
+    // Auto-refresh every 5 minutes
+    fetchMatches();
+    fetchPredictions();
+    setInterval(() => { fetchMatches(); fetchPredictions(); }, 5 * 60 * 1000);
+  </script>
 </body>
 </html>
