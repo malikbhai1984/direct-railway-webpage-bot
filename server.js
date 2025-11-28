@@ -46,7 +46,7 @@ const API_FOOTBALL_KEY = process.env.API_FOOTBALL_KEY || "fdab0eef5743173c30f981
 const TOP_LEAGUES = [2,3,39,61,78,135,140,141,848,556];
 const WORLD_CUP_QUALIFIER = 1;
 
-// ----------------- FETCH TODAY MATCHES (1 request / 15 min) -----------------
+// ----------------- FETCH TODAY MATCHES -----------------
 async function getTodayMatches(){
     try{
         const today = moment().tz("Asia/Karachi").format("YYYY-MM-DD");
@@ -66,6 +66,7 @@ async function getTodayMatches(){
 // ----------------- FETCH H2H -----------------
 async function getH2H(homeID, awayID){
     try{
+        if(!homeID || !awayID) return [];
         const res = await axios.get("https://v3.football.api-sports.io/fixtures/headtohead",{
             headers:{ "x-apisports-key": API_FOOTBALL_KEY },
             params:{ h2h:`${homeID}-${awayID}`, last:5 }
@@ -74,15 +75,27 @@ async function getH2H(homeID, awayID){
     }catch(e){ return []; }
 }
 
-// ----------------- PRO-LEVEL PREDICTION ENGINE -----------------
+// ----------------- PREDICTION ENGINE -----------------
 async function makePrediction(match){
     try{
-        const home = match.teams.home.name;
-        const away = match.teams.away.name;
+        // Handle both string and object format
+        let home, away;
+        if(match.teams && typeof match.teams === "string" && match.teams.includes(" vs ")){
+            [home, away] = match.teams.split(" vs ");
+        } else if(match.teams?.home?.name && match.teams?.away?.name){
+            home = match.teams.home.name;
+            away = match.teams.away.name;
+        } else {
+            console.log("❌ Invalid match object:", match);
+            return null;
+        }
 
-        const h2h = await getH2H(match.teams.home.id, match.teams.away.id);
-        const homeForm = h2h.length ? h2h.filter(m=>m.teams.home.id===match.teams.home.id).length : 3;
-        const awayForm = h2h.length ? h2h.filter(m=>m.teams.away.id===match.teams.away.id).length : 3;
+        const homeID = match.teams?.home?.id || 0;
+        const awayID = match.teams?.away?.id || 0;
+
+        const h2h = homeID && awayID ? await getH2H(homeID, awayID) : [];
+        const homeForm = h2h.length ? h2h.filter(m=>m.teams.home.id===homeID).length : 3;
+        const awayForm = h2h.length ? h2h.filter(m=>m.teams.away.id===awayID).length : 3;
 
         const xG_home = parseFloat((homeForm + Math.random()*0.5).toFixed(2));
         const xG_away = parseFloat((awayForm + Math.random()*0.5).toFixed(2));
@@ -106,14 +119,16 @@ async function makePrediction(match){
         const last10Prob = Math.min(Math.round((xG_home+xG_away)*15 + Math.random()*30),95);
 
         const strongMarkets = [];
-        Object.keys(overUnder).forEach(k=>{ if(overUnder[k]>=85) strongMarkets.push({market:`Over ${k}`,prob:overUnder[k]}); });
+        Object.keys(overUnder).forEach(k=>{
+            if(overUnder[k]>=85) strongMarkets.push({market:`Over ${k}`,prob:overUnder[k]});
+        });
         if(homeProb>=85) strongMarkets.push({market:"Home Win",prob:homeProb});
         if(awayProb>=85) strongMarkets.push({market:"Away Win",prob:awayProb});
         if(bttsProb>=85) strongMarkets.push({market:"BTTS",prob:bttsProb});
 
         return {
-            match_id: match.match_id || match.fixture.id,
-            league: match.league.name,
+            match_id: match.match_id || match._id,
+            league: match.league,
             teams:`${home} vs ${away}`,
             winnerProb:{home:homeProb, draw:drawProb, away:awayProb},
             bttsProb,
@@ -132,7 +147,12 @@ cron.schedule("*/15 * * * *", async ()=>{
     const matches = await getTodayMatches();
     await Prediction.deleteMany({}); 
     for(let m of matches){
-        await Prediction.create({ match_id:m.fixture.id, league:m.league.name, teams:`${m.teams.home.name} vs ${m.teams.away.name}`, created_at:new Date() });
+        await Prediction.create({ 
+            match_id: m.fixture.id, 
+            league: m.league.name, 
+            teams:`${m.teams.home.name} vs ${m.teams.away.name}`, 
+            created_at:new Date() 
+        });
     }
     console.log("✔ Matches updated in DB");
 });
