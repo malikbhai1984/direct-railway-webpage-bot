@@ -1,7 +1,4 @@
-
-
-
-// server.js - Dual-API Fully Fixed (Live + Scheduled + League + SourceAPI)
+// server.js - Professional Dual API Live Prediction System
 import express from "express";
 import axios from "axios";
 import mongoose from "mongoose";
@@ -16,10 +13,17 @@ const PORT = process.env.PORT || 8080;
 
 // ----------------- MONGODB -----------------
 const MONGO_URL = process.env.MONGO_PUBLIC_URL;
-if (!MONGO_URL) { console.error("❌ MONGO_PUBLIC_URL missing"); process.exit(1); }
-mongoose.connect(MONGO_URL, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log("✔ MongoDB Connected"))
-  .catch(err => console.log("❌ Mongo Error:", err));
+if (!MONGO_URL) {
+  console.error("❌ MONGO_PUBLIC_URL missing");
+  process.exit(1);
+}
+
+mongoose.connect(MONGO_URL, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+.then(() => console.log("✔ MongoDB Connected"))
+.catch(err => console.log("❌ Mongo Error:", err));
 
 // ----------------- SCHEMA -----------------
 const PredictionSchema = new mongoose.Schema({
@@ -38,61 +42,70 @@ const PredictionSchema = new mongoose.Schema({
 const Prediction = mongoose.model("Prediction", PredictionSchema);
 
 // ----------------- API KEYS -----------------
-const ALLSPORTS_KEY = process.env.ALL_SPORTS_KEY;
-if (!ALLSPORTS_KEY) { console.error("❌ ALL_SPORTS_KEY missing"); process.exit(1); }
 const API_FOOTBALL_KEY = process.env.API_FOOTBALL_KEY;
-if (!API_FOOTBALL_KEY) { console.error("❌ API_FOOTBALL_KEY missing"); process.exit(1); }
+if (!API_FOOTBALL_KEY) {
+  console.error("❌ API_FOOTBALL_KEY missing");
+  process.exit(1);
+}
+const FOOTBALL_DATA_KEY = process.env.FOOTBALL_DATA_KEY;
+if (!FOOTBALL_DATA_KEY) {
+  console.error("❌ FOOTBALL_DATA_KEY missing");
+  process.exit(1);
+}
 
-const ALLSPORTS_URL = "https://api.allsportsapi.com/football/";
-const API_FOOTBALL_URL = "https://v3.football.api-sports.io/fixtures";
-
-// ----------------- FETCH LIVE + TODAY MATCHES -----------------
+// ----------------- FETCH LIVE MATCHES -----------------
 async function fetchLiveMatches() {
+  const todayUTC = new Date().toISOString().split("T")[0];
+  let matches = [];
+
+  // 1️⃣ API-Football primary
   try {
-    const todayUTC = new Date().toISOString().split("T")[0];
-
-    let matches = [];
-
-    // --- ALLSPORTSAPI: Premier League + LaLiga ---
-    const allSportsLeagues = { "Premier League": 39, "LaLiga": 140 };
-    for (const [name, id] of Object.entries(allSportsLeagues)) {
-      const res = await axios.get(`${ALLSPORTS_URL}?met=Fixtures&APIkey=${ALLSPORTS_KEY}&leagueId=${id}&from=${todayUTC}&to=${todayUTC}`);
-      const data = res.data.result || [];
-      const leagueMatches = data.map(m => ({
-        fixture: { id: m.event_key, date: m.event_date, status: m.event_status },
-        league: { name },
-        teams: { home: { name: m.event_home_team }, away: { name: m.event_away_team } },
-        goals: m.event_final_result ? { home: m.event_final_result.split("-")[0], away: m.event_final_result.split("-")[1] } : { home: "-", away: "-" },
-        sourceAPI: "AllSportsAPI"
-      }));
-      console.log(`🔹 [AllSportsAPI] ${name} matches fetched: ${leagueMatches.length}`);
-      matches.push(...leagueMatches);
-    }
-
-    // --- API-FOOTBALL: All other leagues ---
-    const resAF = await axios.get(API_FOOTBALL_URL, {
+    const resAF = await axios.get("https://v3.football.api-sports.io/fixtures", {
       headers: { "x-apisports-key": API_FOOTBALL_KEY },
-      params: { date: todayUTC, season: 2025 },
+      params: { date: todayUTC, live: "all" },
       timeout: 10000
     });
     const afMatches = resAF.data.response || [];
-    const afFiltered = afMatches.map(m => ({
-      fixture: m.fixture,
-      league: m.league || { name: "Unknown League" },
-      teams: m.teams,
-      goals: m.goals,
-      status: m.fixture.status.short,
-      sourceAPI: "API-Football"
-    }));
-    console.log(`🔹 [API-Football] Other leagues matches fetched: ${afFiltered.length}`);
-    matches.push(...afFiltered);
-
-    console.log(`✔ Total matches fetched for today: ${matches.length}`);
-    return matches;
+    if (afMatches.length > 0) {
+      matches.push(...afMatches.map(m => ({
+        fixture: m.fixture,
+        league: m.league || { name: "Unknown League" },
+        teams: m.teams,
+        goals: m.goals,
+        status: m.fixture.status.short,
+        sourceAPI: "API-Football"
+      })));
+      console.log(`✔ Fetched ${afMatches.length} matches from API-Football`);
+      return matches;
+    }
   } catch (err) {
-    console.error("❌ fetchLiveMatches error:", err.message);
-    return [];
+    console.warn("⚠ API-Football failed:", err.message);
   }
+
+  // 2️⃣ football-data.org fallback
+  try {
+    const resFD = await axios.get("https://api.football-data.org/v4/matches", {
+      headers: { "X-Auth-Token": FOOTBALL_DATA_KEY },
+      params: { dateFrom: todayUTC, dateTo: todayUTC },
+      timeout: 10000
+    });
+    const fdMatches = resFD.data.matches || [];
+    if (fdMatches.length > 0) {
+      matches.push(...fdMatches.map(m => ({
+        fixture: { id: m.id, status: m.status },
+        league: { name: m.competition.name },
+        teams: { home: { name: m.homeTeam.name }, away: { name: m.awayTeam.name } },
+        goals: { home: m.score.fullTime.home, away: m.score.fullTime.away },
+        status: m.status,
+        sourceAPI: "football-data.org"
+      })));
+      console.log(`✔ Fetched ${fdMatches.length} matches from football-data.org`);
+    }
+  } catch (err) {
+    console.error("❌ football-data.org failed:", err.message);
+  }
+
+  return matches;
 }
 
 // ----------------- PREDICTION ENGINE -----------------
@@ -127,7 +140,7 @@ async function makePrediction(match) {
 
     return {
       match_id: String(match.fixture.id),
-      league: match.league?.name || "Unknown League",
+      league: match.league.name,
       teams: `${home} vs ${away}`,
       winnerProb: { home: homeProb, draw: drawProb, away: awayProb },
       bttsProb,
@@ -135,7 +148,7 @@ async function makePrediction(match) {
       last10Prob,
       xG: { home: xG_home, away: xG_away, total: xG_total },
       strongMarkets,
-      sourceAPI: match.sourceAPI || "Unknown",
+      sourceAPI: match.sourceAPI,
       updated_at: new Date()
     };
   } catch (err) {
@@ -144,7 +157,9 @@ async function makePrediction(match) {
   }
 }
 
-// ----------------- CRON -----------------
+// ----------------- CRON JOBS -----------------
+
+// Fetch live matches every 15 min
 cron.schedule("*/15 * * * *", async () => {
   const matches = await fetchLiveMatches();
   for (const m of matches) {
@@ -156,6 +171,7 @@ cron.schedule("*/15 * * * *", async () => {
   }
 });
 
+// Update predictions every 5 min
 cron.schedule("*/5 * * * *", async () => {
   const matches = await Prediction.find();
   for (const m of matches) {
@@ -180,8 +196,10 @@ app.get("/events", async (req, res) => {
     const preds = await Prediction.find().sort({ updated_at: -1 }).limit(200);
     res.write(`data: ${JSON.stringify({ ts: Date.now(), matches: preds })}\n\n`);
   };
+
   await sendUpdates();
   const interval = setInterval(sendUpdates, 5 * 60 * 1000);
+
   req.on("close", () => clearInterval(interval));
 });
 
@@ -206,4 +224,6 @@ app.get("/", (req, res) => {
 });
 
 // ----------------- START SERVER -----------------
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
