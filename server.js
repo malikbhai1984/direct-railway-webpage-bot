@@ -1,4 +1,7 @@
-// server.js - Full Debug + Raw API Logs
+
+
+
+// server.js - Final Debug + Fallback + Initial Fetch
 import express from "express";
 import axios from "axios";
 import mongoose from "mongoose";
@@ -43,7 +46,6 @@ if (!API_FOOTBALL_KEY || !FOOTBALL_DATA_KEY) { console.error("❌ API keys missi
 async function fetchLiveMatches() {
   const todayUTC = new Date().toISOString().split("T")[0];
   let matches = [];
-  let fetchedFrom = "";
 
   // ----- API-Football Primary -----
   try {
@@ -64,10 +66,9 @@ async function fetchLiveMatches() {
         status: m.fixture.status.short,
         sourceAPI: "API-Football"
       })));
-      fetchedFrom = "API-Football";
       console.log(`✔ [API-Football] Fetched ${afMatches.length} live matches`);
       return matches;
-    } else { console.warn("⚠ [API-Football] No live matches today"); }
+    } else { console.warn("⚠ [API-Football] No live matches, falling back to football-data.org"); }
   } catch (err) { console.warn("⚠ [API-Football] Error:", err.message); }
 
   // ----- football-data.org Fallback -----
@@ -89,15 +90,21 @@ async function fetchLiveMatches() {
         status: m.status,
         sourceAPI: "football-data.org"
       })));
-      fetchedFrom = "football-data.org";
       console.log(`✔ [football-data.org] Fetched ${fdMatches.length} live matches`);
     } else { console.warn("⚠ [football-data.org] No live matches today"); }
   } catch (err) { console.error("❌ [football-data.org] Error:", err.message); }
 
-  console.log(`📊 Total matches fetched: ${matches.length} | Source: ${fetchedFrom || "None"}`);
+  console.log(`📊 Total matches fetched: ${matches.length}`);
   matches.forEach(m => console.log(`[${m.sourceAPI}] ${m.teams.home.name} vs ${m.teams.away.name}`));
   return matches;
 }
+
+// ----------------- INITIAL FETCH ON SERVER START -----------------
+(async () => {
+  console.log("🟢 Initial live match fetch on server start...");
+  const initialMatches = await fetchLiveMatches();
+  console.log(`🟢 Initial fetch matches: ${initialMatches.length}`);
+})();
 
 // ----------------- PREDICTION ENGINE -----------------
 async function makePrediction(match) {
@@ -169,50 +176,6 @@ cron.schedule("*/5 * * * *", async () => {
   }
 });
 
-// ----------------- TEMPORARY DEBUG ROUTE -----------------
+// ----------------- DEBUG ROUTE -----------------
 app.get("/debug-fetch", async (req, res) => {
-  console.log("🟢 Manual debug: fetching live matches...");
-  const matches = await fetchLiveMatches();
-  console.log("🟢 Matches fetched:", matches.length);
-  res.json({ total: matches.length, matches });
-});
-
-// ----------------- SSE -----------------
-app.get("/events", async (req, res) => {
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.flushHeaders();
-
-  const sendUpdates = async () => {
-    const preds = await Prediction.find().sort({ updated_at: -1 }).limit(200);
-    res.write(`data: ${JSON.stringify({ ts: Date.now(), matches: preds })}\n\n`);
-  };
-
-  await sendUpdates();
-  const interval = setInterval(sendUpdates, 5 * 60 * 1000);
-  req.on("close", () => clearInterval(interval));
-});
-
-// ----------------- API ROUTES -----------------
-app.get("/prediction", async (req, res) => {
-  const preds = await Prediction.find().sort({ updated_at: -1 }).limit(200);
-  res.json(preds);
-});
-app.get("/today-matches", async (req, res) => {
-  const matches = await fetchLiveMatches();
-  res.json(matches);
-});
-
-// ----------------- SERVE INDEX.HTML -----------------
-app.get("/", (req, res) => {
-  const filePath = path.join(process.cwd(), "index.html");
-  fs.readFile(filePath, "utf8", (err, data) => {
-    if (err) return res.status(500).send("❌ index.html not found");
-    res.setHeader("Content-Type", "text/html");
-    res.send(data);
-  });
-});
-
-// ----------------- START SERVER -----------------
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+  console.log("🟢 Manu
