@@ -1,7 +1,4 @@
-
-
-
-// server.js - Full Debug-Ready Version
+// server.js - Full Debug + Raw API Logs
 import express from "express";
 import axios from "axios";
 import mongoose from "mongoose";
@@ -16,11 +13,7 @@ const PORT = process.env.PORT || 8080;
 
 // ----------------- MONGO -----------------
 const MONGO_URL = process.env.MONGO_PUBLIC_URL;
-if (!MONGO_URL) {
-  console.error("❌ MONGO_PUBLIC_URL missing");
-  process.exit(1);
-}
-
+if (!MONGO_URL) { console.error("❌ MONGO_PUBLIC_URL missing"); process.exit(1); }
 mongoose.connect(MONGO_URL, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => console.log("✔ MongoDB Connected"))
   .catch(err => console.error("❌ Mongo Error:", err));
@@ -44,11 +37,7 @@ const Prediction = mongoose.model("Prediction", PredictionSchema);
 // ----------------- API KEYS -----------------
 const API_FOOTBALL_KEY = process.env.API_FOOTBALL_KEY;
 const FOOTBALL_DATA_KEY = process.env.FOOTBALL_DATA_KEY;
-
-if (!API_FOOTBALL_KEY || !FOOTBALL_DATA_KEY) {
-  console.error("❌ API keys missing");
-  process.exit(1);
-}
+if (!API_FOOTBALL_KEY || !FOOTBALL_DATA_KEY) { console.error("❌ API keys missing"); process.exit(1); }
 
 // ----------------- FETCH LIVE MATCHES -----------------
 async function fetchLiveMatches() {
@@ -63,6 +52,8 @@ async function fetchLiveMatches() {
       params: { date: todayUTC, live: "all" },
       timeout: 10000
     });
+    console.log("🔹 [API-Football] Raw Response:", JSON.stringify(resAF.data, null, 2));
+
     const afMatches = resAF.data.response || [];
     if (afMatches.length > 0) {
       matches.push(...afMatches.map(m => ({
@@ -76,11 +67,8 @@ async function fetchLiveMatches() {
       fetchedFrom = "API-Football";
       console.log(`✔ [API-Football] Fetched ${afMatches.length} live matches`);
       return matches;
-    }
-    console.warn("⚠ [API-Football] No live matches today");
-  } catch (err) {
-    console.warn("⚠ [API-Football] Error:", err.message);
-  }
+    } else { console.warn("⚠ [API-Football] No live matches today"); }
+  } catch (err) { console.warn("⚠ [API-Football] Error:", err.message); }
 
   // ----- football-data.org Fallback -----
   try {
@@ -89,6 +77,8 @@ async function fetchLiveMatches() {
       params: { dateFrom: todayUTC, dateTo: todayUTC },
       timeout: 10000
     });
+    console.log("🔹 [football-data.org] Raw Response:", JSON.stringify(resFD.data, null, 2));
+
     const fdMatches = resFD.data.matches || [];
     if (fdMatches.length > 0) {
       matches.push(...fdMatches.map(m => ({
@@ -101,12 +91,8 @@ async function fetchLiveMatches() {
       })));
       fetchedFrom = "football-data.org";
       console.log(`✔ [football-data.org] Fetched ${fdMatches.length} live matches`);
-    } else {
-      console.warn("⚠ [football-data.org] No live matches today");
-    }
-  } catch (err) {
-    console.error("❌ [football-data.org] Error:", err.message);
-  }
+    } else { console.warn("⚠ [football-data.org] No live matches today"); }
+  } catch (err) { console.error("❌ [football-data.org] Error:", err.message); }
 
   console.log(`📊 Total matches fetched: ${matches.length} | Source: ${fetchedFrom || "None"}`);
   matches.forEach(m => console.log(`[${m.sourceAPI}] ${m.teams.home.name} vs ${m.teams.away.name}`));
@@ -118,7 +104,6 @@ async function makePrediction(match) {
   try {
     const home = match.teams.home.name;
     const away = match.teams.away.name;
-
     const xG_home = Number((Math.random() * 2 + 0.5).toFixed(2));
     const xG_away = Number((Math.random() * 2 + 0.5).toFixed(2));
     const xG_total = Number((xG_home + xG_away).toFixed(2));
@@ -129,9 +114,7 @@ async function makePrediction(match) {
 
     const bttsProb = Math.min(95, Math.round(Math.random() * 50 + xG_total * 10));
     const overUnder = {};
-    for (let t = 0.5; t <= 5.5; t += 0.5) {
-      overUnder[t.toFixed(1)] = Math.min(98, Math.round(Math.random() * 50 + xG_total * 10));
-    }
+    for (let t = 0.5; t <= 5.5; t += 0.5) overUnder[t.toFixed(1)] = Math.min(98, Math.round(Math.random() * 50 + xG_total * 10));
     const last10Prob = Math.min(95, Math.round(xG_total * 15));
 
     const strongMarkets = [];
@@ -156,10 +139,7 @@ async function makePrediction(match) {
       sourceAPI: match.sourceAPI,
       updated_at: new Date()
     };
-  } catch (err) {
-    console.error("❌ makePrediction error:", err.message);
-    return null;
-  }
+  } catch (err) { console.error("❌ makePrediction error:", err.message); return null; }
 }
 
 // ----------------- CRON JOBS -----------------
