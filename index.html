@@ -1,60 +1,87 @@
 
 
 
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Live Football Predictions</title>
-  <style>
-    body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px; }
-    h1 { color: #333; }
-    .match { background: #fff; padding: 15px; margin: 10px 0; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-    .teams { font-weight: bold; font-size: 1.1em; }
-    .prob { margin-top: 5px; }
-    .strong { color: green; font-weight: bold; }
-  </style>
+<meta charset="utf-8" />
+<title>Live Football Predictions (PKT)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+body{background:#0b0b0b;color:#fff;font-family:Arial, sans-serif;margin:0;padding:18px;}
+header{text-align:center;margin-bottom:12px}
+.layout{display:flex;gap:18px;align-items:flex-start;max-width:1200px;margin:0 auto;}
+.left{width:38%;background:#111;padding:12px;border-radius:10px;border:1px solid #222;}
+.right{width:62%;background:#0e0f10;padding:12px;border-radius:10px;border:2px solid #00ff90;position:relative;}
+h2{margin:6px 0 12px 0;color:#00ff90}
+.match{padding:8px;border-bottom:1px solid #222;}
+.predCard{padding:10px;margin-bottom:10px;border-radius:8px;background:#151515;transition:all 0.3s;}
+.strong{background:#073;color:#fff;}
+.small{font-size:12px;color:#bbb;}
+.meta{font-size:13px;color:#9cc;margin-bottom:8px;}
+.toast{position:fixed;top:10px;right:10px;background:#00ff90;color:#000;padding:10px 16px;border-radius:6px;box-shadow:0 0 8px #0f0;opacity:0.9;margin-bottom:6px;z-index:999;}
+@media(max-width:900px){.layout{flex-direction:column}.left,.right{width:100%}}
+</style>
 </head>
 <body>
-  <h1>Live Football Predictions</h1>
-  <div id="matches"></div>
+<header>
+<h1>⚽ Live Auto Predictions (PKT)</h1>
+<div class="small">Auto updates every 5 minutes. No reload required.</div>
+<div class="small" style="color:#0f0">Welcome! Auto Prediction Active ✅</div>
+</header>
 
-  <script>
-    const matchesContainer = document.getElementById('matches');
+<div class="layout">
+<div class="left">
+<h2>📅 Today Matches (PKT)</h2>
+<div id="matchList">Loading...</div>
+</div>
 
-    // Connect to SSE endpoint
-    const evtSource = new EventSource('/events');
+<div class="right">
+<h2>🔮 Live Predictions</h2>
+<div id="predList">Waiting for updates...</div>
+</div>
+</div>
 
-    evtSource.onmessage = function(event) {
-      const data = JSON.parse(event.data);
-      if (data.error) {
-        matchesContainer.innerHTML = `<p style="color:red;">Error: ${data.error}</p>`;
-        return;
-      }
+<script>
+async function loadToday(){
+try{
+const r = await fetch('/today-matches');
+const j = await r.json();
+const box = document.getElementById('matchList');
+if(!j.length){ box.innerHTML='<div class="small">No matches today.</div>'; return; }
+let html='';
+j.forEach(m=>{
+html+=<div class="match"><strong>${m.teams.home.name} vs ${m.teams.away.name}</strong>       <div class="small">${m.league.name} • ${new Date(m.fixture.date).toLocaleString()} PKT • ${m.fixture.status.short}</div></div>;
+});
+box.innerHTML = html;
+}catch(e){ console.error(e); document.getElementById('matchList').innerHTML='Fetch error'; }
+}
+loadToday();
+setInterval(loadToday,5601000);
 
-      const matches = data.matches;
-      matchesContainer.innerHTML = '';
+const predBox = document.getElementById('predList');
+const sse = new EventSource('/events');
+sse.onopen = ()=>{ predBox.innerHTML='<div class="small" style="color:#0f0">Connected — waiting for first snapshot...</div>'; };
+sse.onerror = ()=>{ predBox.innerHTML='<div class="small" style="color:#f33">Connection lost. Check backend.</div>'; };
 
-      matches.forEach(m => {
-        const div = document.createElement('div');
-        div.className = 'match';
-        div.innerHTML = `
-          <div class="teams">${m.home} vs ${m.away}</div>
-          <div class="prob">Winner Probability: Home ${m.winnerProb.home}% | Draw ${m.winnerProb.draw}% | Away ${m.winnerProb.away}%</div>
-          <div class="prob">BTTS: ${m.bttsProb}%</div>
-          <div class="prob">Last 10 min goal: ${m.last10Prob}%</div>
-          <div class="prob">xG: Home ${m.xG.home}, Away ${m.xG.away}, Total ${m.xG.total}</div>
-          <div class="prob">Strong Markets: ${m.strongMarkets.map(s => `<span class="strong">${s.market} (${s.prob}%)</span>`).join(', ')}</div>
-        `;
-        matchesContainer.appendChild(div);
-      });
-    };
+function showToast(message){
+const t = document.createElement('div'); t.className='toast'; t.innerText=message;
+document.body.appendChild(t); setTimeout(()=>t.remove(),5000);
+}
 
-    evtSource.onerror = function(err) {
-      console.error("SSE error:", err);
-      matchesContainer.innerHTML = `<p style="color:red;">SSE connection lost. Trying to reconnect...</p>`;
-    };
-  </script>
+sse.onmessage=(e)=>{
+try{
+const data = JSON.parse(e.data);
+if(!data.matches){ predBox.innerHTML='No data'; return; }
+let html=<div class="meta">Updated: ${new Date(data.ts).toLocaleString()}</div>;
+data.matches.forEach(item=>{
+const strong = (item.strongMarkets && item.strongMarkets.length>0);
+html+=<div class="predCard ${strong?'strong':''}">         <div><strong>${item.home} vs ${item.away}</strong></div>         <div>Winner: Home ${item.winnerProb.home}% • Draw ${item.winnerProb.draw}% • Away ${item.winnerProb.away}%</div>         <div>BTTS: ${item.bttsProb}% • Last10: ${item.last10Prob}%</div>         <div class="small">xG: H:${item.xG.home} A:${item.xG.away} Total:${item.xG.total}</div>         <div class="small">Strong markets: ${item.strongMarkets.map(s=>s.market+'('+s.prob+'%)').join(', ')}</div>       </div>;
+if(strong) showToast(New strong prediction: ${item.home} vs ${item.away});
+});
+predBox.innerHTML = html;
+}catch(err){ console.error(err); predBox.innerHTML='<div class="small" style="color:#f33">Parse error</div>'; }
+};
+</script>
 </body>
 </html>
