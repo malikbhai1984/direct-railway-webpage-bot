@@ -1,7 +1,6 @@
 
 
-
-import express from "express"; 
+import express from "express";
 import axios from "axios";
 import mongoose from "mongoose";
 import moment from "moment-timezone";
@@ -17,16 +16,16 @@ const app = express();
 app.use(cors());
 const PORT = process.env.PORT || 8080;
 
-// ----------------- MONGODB -----------------
+// ================= MONGODB =================
 mongoose.connect(process.env.MONGO_PUBLIC_URL, {
     useNewUrlParser: true,
     useUnifiedTopology: true
-}).then(()=>console.log("✔ MongoDB Connected"))
-.catch(err=>console.log("❌ Mongo Error:",err));
+}).then(() => console.log("✔ MongoDB Connected"))
+  .catch(err => console.log("❌ Mongo Error:", err.message));
 
-// ----------------- SCHEMA -----------------
+// ================== SCHEMA ==================
 const PredictionSchema = new mongoose.Schema({
-    match_id: String,
+    match_id: { type: String, required: true, unique: true },
     league: String,
     teams: String,
     winnerProb: Object,
@@ -35,185 +34,155 @@ const PredictionSchema = new mongoose.Schema({
     last10Prob: Number,
     xG: Object,
     strongMarkets: Array,
-    created_at: { type: Date, default: Date.now }
+    created_at: { type: Date, default: Date.now },
+    updated_at: { type: Date, default: Date.now }
 });
+
 const Prediction = mongoose.model("Prediction", PredictionSchema);
 
-// ----------------- API KEYS -----------------
-const API_FOOTBALL_KEY = process.env.API_FOOTBALL_KEY || "fdab0eef5743173c30f9810bef3a6742";
-
-// ----------------- CONFIG -----------------
-const TOP_LEAGUES = [2,3,39,61,78,135,140,141,848,556];
+// ================= API CONFIG =================
+const API_FOOTBALL_KEY = process.env.API_FOOTBALL_KEY;
+const API_BASE = "https://v3.football.api-sports.io";
+const TOP_LEAGUES = [2, 3, 39, 61, 78, 135, 140, 141, 848, 556];
 const WORLD_CUP_QUALIFIER = 1;
 
-// ----------------- FETCH TODAY MATCHES -----------------
-async function getTodayMatches(){
-    try{
+// ================= TODAY MATCHES =================
+async function getTodayMatches() {
+    try {
         const today = moment().tz("Asia/Karachi").format("YYYY-MM-DD");
-        const res = await axios.get("https://v3.football.api-sports.io/fixtures",{
-            headers:{ "x-apisports-key": API_FOOTBALL_KEY },
-            params:{ date: today }
+
+        const res = await axios.get(`${API_BASE}/fixtures`, {
+            headers: { "x-apisports-key": API_FOOTBALL_KEY },
+            params: { date: today }
         });
-        let matches = res.data.response;
-        matches = matches.filter(m=>TOP_LEAGUES.includes(m.league.id)||m.league.id===WORLD_CUP_QUALIFIER);
+
+        let matches = res.data.response || [];
+
+        matches = matches.filter(
+            m => TOP_LEAGUES.includes(m.league.id) || m.league.id === WORLD_CUP_QUALIFIER
+        );
+
         return matches;
-    }catch(err){
-        console.log("❌ Error Fetching Matches:",err.message);
+    } catch (e) {
+        console.log("❌ Error Fetching Matches:", e.message);
         return [];
     }
 }
 
-// ----------------- FETCH H2H -----------------
-async function getH2H(homeID, awayID){
-    try{
-        if(!homeID || !awayID) return [];
-        const res = await axios.get("https://v3.football.api-sports.io/fixtures/headtohead",{
-            headers:{ "x-apisports-key": API_FOOTBALL_KEY },
-            params:{ h2h:`${homeID}-${awayID}`, last:5 }
+// ============== H2H FETCH (SAFE) ==============
+async function getH2H(homeID, awayID) {
+    try {
+        const res = await axios.get(`${API_BASE}/fixtures/headtohead`, {
+            headers: { "x-apisports-key": API_FOOTBALL_KEY },
+            params: { h2h: `${homeID}-${awayID}`, last: 5 }
         });
-        return res.data.response;
-    }catch(e){ return []; }
+
+        return res.data.response || [];
+    } catch {
+        return [];
+    }
 }
 
-// ----------------- PREDICTION ENGINE -----------------
-async function makePrediction(match){
-    try{
-        // Handle both string and object format
-        let home, away;
-        if(match.teams && typeof match.teams === "string" && match.teams.includes(" vs ")){
-            [home, away] = match.teams.split(" vs ");
-        } else if(match.teams?.home?.name && match.teams?.away?.name){
-            home = match.teams.home.name;
-            away = match.teams.away.name;
-        } else {
-            console.log("❌ Invalid match object:", match);
-            return null;
-        }
+// ============== PREDICTION ENGINE ==============
+async function makePrediction(match) {
+    try {
+        const home = match.teams.split(" vs ")[0];
+        const away = match.teams.split(" vs ")[1];
 
-        const homeID = match.teams?.home?.id || 0;
-        const awayID = match.teams?.away?.id || 0;
+        const xG_home = (Math.random() * 2 + 0.5).toFixed(2);
+        const xG_away = (Math.random() * 2 + 0.5).toFixed(2);
+        const xG_total = (parseFloat(xG_home) + parseFloat(xG_away)).toFixed(2);
 
-        const h2h = homeID && awayID ? await getH2H(homeID, awayID) : [];
-        const homeForm = h2h.length ? h2h.filter(m=>m.teams.home.id===homeID).length : 3;
-        const awayForm = h2h.length ? h2h.filter(m=>m.teams.away.id===awayID).length : 3;
+        const homeProb = Math.round(Math.random() * 70 + 10);
+        const awayProb = Math.round(Math.random() * 60 + 5);
+        const drawProb = 100 - homeProb - awayProb;
 
-        const xG_home = parseFloat((homeForm + Math.random()*0.5).toFixed(2));
-        const xG_away = parseFloat((awayForm + Math.random()*0.5).toFixed(2));
-        const xG_total = parseFloat((xG_home+xG_away).toFixed(2));
-
-        let homeProb = Math.min(Math.round(40 + xG_home*15 + Math.random()*10),95);
-        let awayProb = Math.min(Math.round(30 + xG_away*15 + Math.random()*10),95);
-        let drawProb = Math.max(100-homeProb-awayProb,5);
-        const sum = homeProb+awayProb+drawProb;
-        homeProb=Math.round(homeProb/sum*100);
-        drawProb=Math.round(drawProb/sum*100);
-        awayProb=Math.round(awayProb/sum*100);
-
-        const bttsProb = Math.min(Math.round(xG_home*20 + xG_away*20 + Math.random()*30),95);
+        const bttsProb = Math.round((xG_total * 20) + Math.random() * 20);
 
         const overUnder = {};
-        for(let i=0.5;i<=5.5;i+=0.5){
-            overUnder[i.toFixed(1)] = Math.min(Math.round((xG_total/i)*50 + Math.random()*30),99);
+        for (let i = 0.5; i <= 5.5; i += 0.5) {
+            overUnder[i.toFixed(1)] = Math.round((xG_total / i) * 40 + Math.random() * 30);
         }
-
-        const last10Prob = Math.min(Math.round((xG_home+xG_away)*15 + Math.random()*30),95);
 
         const strongMarkets = [];
-        Object.keys(overUnder).forEach(k=>{
-            if(overUnder[k]>=85) strongMarkets.push({market:`Over ${k}`,prob:overUnder[k]});
-        });
-        if(homeProb>=85) strongMarkets.push({market:"Home Win",prob:homeProb});
-        if(awayProb>=85) strongMarkets.push({market:"Away Win",prob:awayProb});
-        if(bttsProb>=85) strongMarkets.push({market:"BTTS",prob:bttsProb});
+        for (let key in overUnder) {
+            if (overUnder[key] >= 85) strongMarkets.push({ market: "Over " + key, prob: overUnder[key] });
+        }
 
         return {
-            match_id: match.match_id || match._id,
-            league: match.league,
-            teams:`${home} vs ${away}`,
-            winnerProb:{home:homeProb, draw:drawProb, away:awayProb},
+            ...match,
+            winnerProb: { home: homeProb, draw: drawProb, away: awayProb },
             bttsProb,
             overUnder,
-            last10Prob,
-            xG:{home:xG_home, away:xG_away, total:xG_total},
-            strongMarkets
+            xG: { home: xG_home, away: xG_away, total: xG_total },
+            strongMarkets,
+            updated_at: new Date()
         };
-
-    }catch(err){ console.log("❌ Prediction Error:",err.message); return null; }
+    } catch (e) {
+        console.log("❌ Prediction Engine Error:", e.message);
+        return null;
+    }
 }
 
-// ----------------- CRON JOB: Fetch Matches 15 min -----------------
-cron.schedule("*/15 * * * *", async ()=>{
-    console.log("🔁 Fetching live matches from API...");
+// ============== CRON JOBS ==============
+cron.schedule("*/15 * * * *", async () => {
     const matches = await getTodayMatches();
-    await Prediction.deleteMany({}); 
-    for(let m of matches){
-        await Prediction.create({ 
-            match_id: m.fixture.id, 
-            league: m.league.name, 
-            teams:`${m.teams.home.name} vs ${m.teams.away.name}`, 
-            created_at:new Date() 
+    if (matches.length === 0) return;
+
+    await Prediction.deleteMany({});
+    for (let m of matches) {
+        await Prediction.create({
+            match_id: m.fixture.id,
+            league: m.league.name,
+            teams: `${m.teams.home.name} vs ${m.teams.away.name}`
         });
     }
-    console.log("✔ Matches updated in DB");
+
+    console.log("✔ Matches Fetched:", matches.length);
 });
 
-// ----------------- CRON JOB: Prediction Engine 5 min -----------------
-cron.schedule("*/5 * * * *", async ()=>{
-    console.log("🔁 Auto Prediction Check Running...");
+cron.schedule("*/5 * * * *", async () => {
     const matches = await Prediction.find();
-    for(let m of matches){
+    for (let m of matches) {
         const p = await makePrediction(m);
-        if(!p) continue;
-        await Prediction.updateOne({match_id:p.match_id}, p, {upsert:true});
-        console.log("✔ Prediction Updated:",p.teams);
+        if (!p) continue;
+
+        await Prediction.updateOne({ _id: m._id }, p);
     }
+    console.log("✔ Predictions Updated");
 });
 
-// ----------------- SSE LIVE -----------------
-app.get("/events", async (req,res)=>{
-    res.setHeader("Content-Type","text/event-stream");
-    res.setHeader("Cache-Control","no-cache");
-    res.setHeader("Connection","keep-alive");
+// ============== SSE STREAM ==============
+app.get("/events", async (req, res) => {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Connection", "keep-alive");
     res.flushHeaders();
 
-    console.log("👤 SSE Client Connected");
-
-    const sendUpdates = async ()=>{
-        try{
-            const preds = await Prediction.find().sort({created_at:-1}).limit(20);
-            const formatted = preds.map(p=>({
-                home:p.teams.split(" vs ")[0],
-                away:p.teams.split(" vs ")[1],
-                winnerProb:p.winnerProb,
-                bttsProb:p.bttsProb,
-                overUnder:p.overUnder,
-                last10Prob:p.last10Prob,
-                xG:p.xG,
-                strongMarkets:p.strongMarkets
-            }));
-            res.write(`data: ${JSON.stringify({ts:Date.now(),matches:formatted})}\n\n`);
-        }catch(err){
-            res.write(`data: ${JSON.stringify({error:err.message})}\n\n`);
-        }
+    const send = async () => {
+        const data = await Prediction.find().limit(20).lean();
+        res.write(`data: ${JSON.stringify(data)}\n\n`);
     };
 
-    const interval = setInterval(sendUpdates,5*60*1000);
-    req.on("close",()=>{ clearInterval(interval); console.log("❌ SSE Client Disconnected"); });
+    await send();
+    const timer = setInterval(send, 10000);
+
+    req.on("close", () => clearInterval(timer));
 });
 
-// ----------------- API -----------------
-app.get("/prediction", async (req,res)=>{ 
-    const preds = await Prediction.find().sort({created_at:-1}).limit(20); 
-    res.json(preds); 
-});
-app.get("/today-matches", async (req,res)=>{ 
-    const matches = await Prediction.find(); 
-    res.json(matches); 
+// ============== REST API ==============
+app.get("/prediction", async (req, res) => {
+    const data = await Prediction.find().limit(20).lean();
+    res.json({ success: true, data });
 });
 
-// ----------------- STATIC FRONTEND -----------------
-app.use(express.static(__dirname));
-app.get("/", (req,res)=>{ res.sendFile(path.join(__dirname,"index.html")); });
+// ============== STATIC FRONTEND ==============
+// 👉 NOTE: Yahan public/index.html hona zaroori hai
+app.use(express.static(path.join(__dirname, "public")));
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "public/index.html"));
+});
 
-// ----------------- START SERVER -----------------
-app.listen(PORT,()=>{ console.log(`🚀 Server running on port ${PORT}`); });
+// ============== START SERVER ==============
+app.listen(PORT, () => {
+    console.log(`🚀 Running on PORT ${PORT}`);
+});
