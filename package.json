@@ -1,9 +1,7 @@
-
-
 {
   "name": "football-prediction-system",
   "version": "2.0.0",
-  "description": "Professional Football Prediction System - 100 Request Limit Safe",
+  "description": "Professional Football Prediction System with Pakistan Time Zone",
   "main": "server.js",
   "type": "module",
   "scripts": {
@@ -15,7 +13,8 @@
     "predictions",
     "api-football",
     "machine-learning",
-    "live-scores"
+    "live-scores",
+    "pakistan"
   ],
   "author": "Your Name",
   "license": "MIT",
@@ -31,6 +30,7 @@
     "nodemon": "^3.0.2"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
   }
 }
