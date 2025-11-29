@@ -22,14 +22,23 @@ app.use(express.json());
 const PORT = process.env.PORT || 8080;
 
 // ===================== MONGODB CONNECTION (FIXED) =====================
-const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI;
+// Railway uses MONGO_PUBLIC_URL, also check common variants
+const MONGO_URI = process.env.MONGO_URI || 
+                  process.env.MONGODB_URI || 
+                  process.env.MONGO_PUBLIC_URL ||
+                  process.env.MONGO_URL ||
+                  process.env.DATABASE_URL;
 
 if (!MONGO_URI) {
   console.log("❌ CRITICAL ERROR: MongoDB URI not found!");
-  console.log("💡 Add MONGO_URI in Railway environment variables");
+  console.log("💡 Available environment variables:");
+  console.log(Object.keys(process.env).filter(k => k.includes('MONGO') || k.includes('DATABASE')));
+  console.log("💡 Add one of these: MONGO_URI, MONGO_PUBLIC_URL, or MONGODB_URI");
   console.log("Example: mongodb+srv://user:pass@cluster.mongodb.net/football");
   process.exit(1);
 }
+
+console.log("✅ MongoDB URI found:", MONGO_URI.substring(0, 20) + "...");
 
 console.log("🔄 Connecting to MongoDB...");
 mongoose.connect(MONGO_URI)
