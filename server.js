@@ -1,6 +1,3 @@
-
-
-
 // server.js - Professional Football Prediction System
 // ✅ Fixed MongoDB Connection ✅ Pakistan Time Zone ✅ Last 100 Predictions
 
@@ -255,17 +252,23 @@ async function fetchLiveMatches() {
     let savedCount = 0;
     for (const match of matchesToSave) {
       try {
+        // Validate essential fields
+        if (!match.teams?.home?.name || !match.teams?.away?.name) {
+          console.log("⚠️ Skipping match with missing team names");
+          continue;
+        }
+
         const pktTime = formatPakistanTime(match.fixture?.date);
         
         const matchData = {
-          match_id: String(match.fixture?.id || `${match.teams?.home?.id}_${Date.now()}`),
+          match_id: String(match.fixture?.id),
           league_id: match.league?.id || 0,
           league_name: match.league?.name || "Unknown League",
-          home_team: match.teams?.home?.name || "Unknown",
-          away_team: match.teams?.away?.name || "Unknown",
+          home_team: match.teams.home.name,
+          away_team: match.teams.away.name,
           home_logo: match.teams?.home?.logo || "",
           away_logo: match.teams?.away?.logo || "",
-          match_date: new Date(match.fixture?.date || Date.now()),
+          match_date: new Date(match.fixture?.date),
           match_time_pkt: pktTime.fullDateTime,
           status: match.fixture?.status?.short || "NS",
           home_score: match.goals?.home ?? 0,
@@ -273,6 +276,17 @@ async function fetchLiveMatches() {
           venue: match.fixture?.venue?.name || "Unknown",
           updated_at: new Date()
         };
+
+        // Log sample data for debugging
+        if (savedCount === 0) {
+          console.log("📝 Sample match data:", {
+            id: matchData.match_id,
+            league: matchData.league_name,
+            match: `${matchData.home_team} vs ${matchData.away_team}`,
+            time: matchData.match_time_pkt,
+            status: matchData.status
+          });
+        }
 
         await Match.findOneAndUpdate(
           { match_id: matchData.match_id },
@@ -588,6 +602,7 @@ app.get("/api/today", async (req, res) => {
   }
 });
 
+// Manual trigger endpoint (for testing)
 app.get("/api/fetch-now", async (req, res) => {
   try {
     await fetchLiveMatches();
@@ -595,6 +610,21 @@ app.get("/api/fetch-now", async (req, res) => {
       success: true, 
       message: "Fetch triggered",
       time: moment().tz("Asia/Karachi").format("DD MMM YYYY, hh:mm A")
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Clear corrupted data endpoint
+app.get("/api/clear-db", async (req, res) => {
+  try {
+    await Match.deleteMany({});
+    await Prediction.deleteMany({});
+    console.log("🗑️ Database cleared");
+    res.json({ 
+      success: true, 
+      message: "Database cleared. Now visit /api/fetch-now to get fresh data"
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
