@@ -1,3 +1,10 @@
+
+
+
+
+
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -478,7 +485,7 @@
                 second: '2-digit',
                 hour12: true
             });
-            document.getElementById('pktTime').textContent = 🇵🇰 ${pktTime};
+            document.getElementById('pktTime').textContent = `🇵🇰 ${pktTime}`;
         }
 
         // Get status badge
@@ -494,7 +501,7 @@
                 'P': { class: 'status-live', text: 'Penalties' }
             };
             const s = statusMap[status] || { class: 'status-ns', text: status };
-            return <span class="status-badge ${s.class}">${s.text}</span>;
+            return `<span class="status-badge ${s.class}">${s.text}</span>`;
         }
 
         // Render matches with Pakistan time
@@ -528,7 +535,7 @@
                             <span>${match.away_score || 0}</span>
                         </div>
                     ` : ''}
-                    ${match.venue ? <div style="text-align:center; color:#666; font-size:0.8rem; margin-top:5px;">📍 ${match.venue}</div> : ''}
+                    ${match.venue ? `<div style="text-align:center; color:#666; font-size:0.8rem; margin-top:5px;">📍 ${match.venue}</div>` : ''}
                 </div>
             `).join('');
 
