@@ -1,12 +1,11 @@
 
 
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚽ Live Football Predictions - AI Powered</title>
+    <title>⚽ Live Football Predictions - Pakistan Time</title>
     <style>
         * {
             margin: 0;
@@ -40,6 +39,14 @@
             gap: 10px;
         }
 
+        .pkt-time {
+            text-align: center;
+            color: #764ba2;
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
         .live-indicator {
             display: inline-block;
             width: 12px;
@@ -50,8 +57,8 @@
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.1); }
         }
 
         .stats-bar {
@@ -85,7 +92,7 @@
             border-radius: 12px;
             padding: 20px;
             box-shadow: 0 8px 16px rgba(0,0,0,0.1);
-            max-height: calc(100vh - 200px);
+            max-height: calc(100vh - 220px);
             overflow-y: auto;
         }
 
@@ -97,7 +104,15 @@
             padding-bottom: 10px;
             display: flex;
             align-items: center;
-            gap: 10px;
+            justify-content: space-between;
+        }
+
+        .section-badge {
+            background: #ff4444;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
         }
 
         .match-card {
@@ -106,7 +121,7 @@
             padding: 15px;
             margin-bottom: 15px;
             border-left: 5px solid #667eea;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: all 0.3s;
         }
 
         .match-card:hover {
@@ -132,6 +147,19 @@
 
         .match-time {
             color: #666;
+            font-size: 0.9rem;
+            margin-top: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .time-pkt {
+            background: #fff3cd;
+            color: #856404;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: bold;
             font-size: 0.85rem;
         }
 
@@ -159,7 +187,7 @@
             display: flex;
             justify-content: center;
             gap: 10px;
-            font-size: 1.5rem;
+            font-size: 1.8rem;
             font-weight: bold;
             color: #ff4444;
             margin: 10px 0;
@@ -172,6 +200,11 @@
             margin-bottom: 15px;
             border-left: 5px solid #764ba2;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+        }
+
+        .prediction-card:hover {
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
         }
 
         .prob-bars {
@@ -194,10 +227,15 @@
         .prob-value {
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
-            padding: 10px;
-            border-radius: 5px;
+            padding: 12px;
+            border-radius: 8px;
             font-weight: bold;
-            font-size: 1.2rem;
+            font-size: 1.3rem;
+            transition: all 0.3s;
+        }
+
+        .prob-value:hover {
+            transform: scale(1.05);
         }
 
         .prob-value.home { background: linear-gradient(135deg, #56ab2f, #a8e063); }
@@ -206,7 +244,7 @@
 
         .markets {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
             gap: 10px;
             margin-top: 15px;
         }
@@ -217,47 +255,56 @@
             border-radius: 5px;
             text-align: center;
             font-size: 0.85rem;
+            transition: all 0.3s;
+        }
+
+        .market-item:hover {
+            background: #e8eaf0;
+            transform: scale(1.05);
         }
 
         .market-label {
             color: #666;
             margin-bottom: 5px;
+            font-size: 0.75rem;
         }
 
         .market-value {
             font-weight: bold;
             color: #667eea;
+            font-size: 1rem;
         }
 
         .strong-markets {
             background: linear-gradient(135deg, #56ab2f, #a8e063);
             color: white;
-            padding: 10px;
-            border-radius: 5px;
-            margin-top: 10px;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 12px;
         }
 
         .strong-markets h4 {
-            margin-bottom: 5px;
+            margin-bottom: 8px;
             font-size: 0.9rem;
         }
 
         .strong-market-item {
             background: rgba(255,255,255,0.2);
-            padding: 5px 10px;
-            border-radius: 3px;
+            padding: 6px 10px;
+            border-radius: 5px;
             margin: 5px 0;
             display: flex;
             justify-content: space-between;
+            font-size: 0.85rem;
         }
 
         .xg-display {
             display: flex;
             justify-content: space-around;
             background: #f5f7fa;
-            padding: 10px;
-            border-radius: 5px;
-            margin: 10px 0;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 12px 0;
         }
 
         .xg-item {
@@ -266,13 +313,14 @@
 
         .xg-label {
             color: #666;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
+            margin-bottom: 5px;
         }
 
         .xg-value {
             font-weight: bold;
             color: #764ba2;
-            font-size: 1.1rem;
+            font-size: 1.2rem;
         }
 
         .status-badge {
@@ -299,6 +347,11 @@
             color: white;
         }
 
+        .status-ht {
+            background: #ff9800;
+            color: white;
+        }
+
         .loading {
             text-align: center;
             padding: 40px;
@@ -310,8 +363,8 @@
             border: 4px solid #f3f3f3;
             border-top: 4px solid #667eea;
             border-radius: 50%;
-            width: 40px;
-            height: 40px;
+            width: 50px;
+            height: 50px;
             animation: spin 1s linear infinite;
             margin: 20px auto;
         }
@@ -331,16 +384,19 @@
             display: inline-block;
             background: linear-gradient(135deg, #ffd89b, #19547b);
             color: white;
-            padding: 5px 10px;
+            padding: 5px 12px;
             border-radius: 5px;
             font-size: 0.8rem;
             font-weight: bold;
-            margin-top: 10px;
+            margin-top: 8px;
         }
 
         @media (max-width: 1024px) {
             .container {
                 grid-template-columns: 1fr;
+            }
+            .header h1 {
+                font-size: 1.5rem;
             }
         }
 
@@ -369,6 +425,7 @@
             ⚽ Live Football Predictions
             <span class="live-indicator"></span>
         </h1>
+        <div class="pkt-time" id="pktTime">Pakistan Time: Loading...</div>
         <div class="stats-bar">
             <div class="stat-item">📊 Matches: <span id="matchCount">0</span></div>
             <div class="stat-item">🎯 Predictions: <span id="predCount">0</span></div>
@@ -379,7 +436,10 @@
     <div class="container">
         <!-- LEFT: Today's Matches -->
         <div class="section">
-            <h2>📅 Today's Matches</h2>
+            <h2>
+                📅 Today's Matches
+                <span class="section-badge" id="matchBadge">0</span>
+            </h2>
             <div id="matchesContainer">
                 <div class="loading">
                     <div class="spinner"></div>
@@ -390,7 +450,10 @@
 
         <!-- RIGHT: Predictions -->
         <div class="section">
-            <h2>🎯 AI Predictions</h2>
+            <h2>
+                🎯 AI Predictions
+                <span class="section-badge" id="predBadge">0</span>
+            </h2>
             <div id="predictionsContainer">
                 <div class="loading">
                     <div class="spinner"></div>
@@ -403,15 +466,21 @@
     <script>
         let eventSource = null;
 
-        // Format date/time
-        function formatDateTime(dateStr) {
-            const date = new Date(dateStr);
-            return date.toLocaleString('en-GB', { 
-                hour: '2-digit', 
+        // Update Pakistan time
+        function updatePakistanTime() {
+            const now = new Date();
+            const pktTime = now.toLocaleString('en-PK', { 
+                timeZone: 'Asia/Karachi',
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
                 minute: '2-digit',
-                day: '2-digit',
-                month: 'short'
+                second: '2-digit',
+                hour12: true
             });
+            document.getElementById('pktTime').textContent = `🇵🇰 ${pktTime}`;
         }
 
         // Get status badge
@@ -419,9 +488,9 @@
             const statusMap = {
                 'NS': { class: 'status-ns', text: 'Not Started' },
                 'LIVE': { class: 'status-live', text: 'LIVE' },
-                '1H': { class: 'status-live', text: 'LIVE - 1H' },
-                '2H': { class: 'status-live', text: 'LIVE - 2H' },
-                'HT': { class: 'status-live', text: 'Half Time' },
+                '1H': { class: 'status-live', text: '1st Half' },
+                '2H': { class: 'status-live', text: '2nd Half' },
+                'HT': { class: 'status-ht', text: 'Half Time' },
                 'FT': { class: 'status-ft', text: 'Full Time' },
                 'ET': { class: 'status-live', text: 'Extra Time' },
                 'P': { class: 'status-live', text: 'Penalties' }
@@ -430,22 +499,25 @@
             return `<span class="status-badge ${s.class}">${s.text}</span>`;
         }
 
-        // Render matches
+        // Render matches with Pakistan time
         function renderMatches(matches) {
             const container = document.getElementById('matchesContainer');
             
             if (!matches || matches.length === 0) {
-                container.innerHTML = '<div class="empty-state">📭 No matches found for today</div>';
+                container.innerHTML = '<div class="empty-state">📭 No matches scheduled for today</div>';
+                document.getElementById('matchBadge').textContent = '0';
                 return;
             }
 
             container.innerHTML = matches.map(match => `
                 <div class="match-card">
                     <div class="match-header">
-                        <span class="league-badge">${match.league_name || 'Unknown League'}</span>
+                        <span class="league-badge">${match.league_name || 'Unknown'}</span>
                         ${getStatusBadge(match.status)}
                     </div>
-                    <div class="match-time">⏰ ${formatDateTime(match.match_date)}</div>
+                    <div class="match-time">
+                        🕐 <span class="time-pkt">${match.match_time_pkt || 'Time TBA'}</span>
+                    </div>
                     <div class="teams">
                         <div class="team">${match.home_team}</div>
                         <div class="vs">VS</div>
@@ -458,10 +530,12 @@
                             <span>${match.away_score || 0}</span>
                         </div>
                     ` : ''}
+                    ${match.venue ? `<div style="text-align:center; color:#666; font-size:0.8rem; margin-top:5px;">📍 ${match.venue}</div>` : ''}
                 </div>
             `).join('');
 
             document.getElementById('matchCount').textContent = matches.length;
+            document.getElementById('matchBadge').textContent = matches.length;
         }
 
         // Render predictions
@@ -470,6 +544,7 @@
             
             if (!predictions || predictions.length === 0) {
                 container.innerHTML = '<div class="empty-state">🤖 Predictions loading...</div>';
+                document.getElementById('predBadge').textContent = '0';
                 return;
             }
 
@@ -483,6 +558,9 @@
                         <div class="team">${pred.home_team}</div>
                         <div class="vs">VS</div>
                         <div class="team">${pred.away_team}</div>
+                    </div>
+                    <div class="match-time">
+                        🕐 <span class="time-pkt">${pred.match_time_pkt || 'Time TBA'}</span>
                     </div>
 
                     <!-- Winner Probabilities -->
@@ -540,11 +618,11 @@
                     <!-- Strong Markets -->
                     ${pred.strong_markets && pred.strong_markets.length > 0 ? `
                         <div class="strong-markets">
-                            <h4>🔥 High Confidence Markets (≥85%)</h4>
+                            <h4>🔥 High Confidence (≥85%)</h4>
                             ${pred.strong_markets.map(m => `
                                 <div class="strong-market-item">
                                     <span>${m.market}</span>
-                                    <span>${m.prob}%</span>
+                                    <span><strong>${m.prob}%</strong></span>
                                 </div>
                             `).join('')}
                         </div>
@@ -553,6 +631,7 @@
             `).join('');
 
             document.getElementById('predCount').textContent = predictions.length;
+            document.getElementById('predBadge').textContent = predictions.length;
         }
 
         // Update last update time
@@ -593,7 +672,7 @@
             };
 
             eventSource.onerror = () => {
-                console.log('❌ SSE connection lost. Reconnecting...');
+                console.log('❌ SSE disconnected. Reconnecting in 5s...');
                 setTimeout(connectSSE, 5000);
             };
         }
@@ -620,14 +699,16 @@
 
         // Initialize
         window.addEventListener('DOMContentLoaded', () => {
+            updatePakistanTime();
+            setInterval(updatePakistanTime, 1000);
+            
             fetchInitialData();
             connectSSE();
             
-            // Update time every second
             setInterval(updateLastUpdateTime, 1000);
         });
 
-        // Cleanup on page unload
+        // Cleanup
         window.addEventListener('beforeunload', () => {
             if (eventSource) {
                 eventSource.close();
