@@ -4,42 +4,635 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Football Predictions Live</title>
-<style>
-body{font-family:sans-serif;background:#f4f4f9;padding:20px;}
-.match{border:1px solid #ddd;margin:10px;padding:10px;border-radius:5px;background:#fff;}
-h2{margin:5px 0;}
-.prob{margin:3px 0;}
-.strong{color:green;font-weight:bold;}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚽ Live Football Predictions - AI Powered</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .header h1 {
+            text-align: center;
+            color: #667eea;
+            font-size: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .live-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            background: #ff4444;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .stats-bar {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 20px;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
+        }
+
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .match-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 5px solid #667eea;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .match-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+        }
+
+        .match-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .league-badge {
+            background: #667eea;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+
+        .match-time {
+            color: #666;
+            font-size: 0.85rem;
+        }
+
+        .teams {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 15px 0;
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+
+        .team {
+            flex: 1;
+            text-align: center;
+        }
+
+        .vs {
+            color: #667eea;
+            font-weight: bold;
+            padding: 0 15px;
+        }
+
+        .score {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #ff4444;
+            margin: 10px 0;
+        }
+
+        .prediction-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 5px solid #764ba2;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .prob-bars {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .prob-bar {
+            flex: 1;
+            text-align: center;
+        }
+
+        .prob-label {
+            font-size: 0.8rem;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .prob-value {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .prob-value.home { background: linear-gradient(135deg, #56ab2f, #a8e063); }
+        .prob-value.draw { background: linear-gradient(135deg, #ffd89b, #19547b); }
+        .prob-value.away { background: linear-gradient(135deg, #f857a6, #ff5858); }
+
+        .markets {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .market-item {
+            background: #f5f7fa;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 0.85rem;
+        }
+
+        .market-label {
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .market-value {
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .strong-markets {
+            background: linear-gradient(135deg, #56ab2f, #a8e063);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+
+        .strong-markets h4 {
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+        }
+
+        .strong-market-item {
+            background: rgba(255,255,255,0.2);
+            padding: 5px 10px;
+            border-radius: 3px;
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .xg-display {
+            display: flex;
+            justify-content: space-around;
+            background: #f5f7fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+
+        .xg-item {
+            text-align: center;
+        }
+
+        .xg-label {
+            color: #666;
+            font-size: 0.8rem;
+        }
+
+        .xg-value {
+            font-weight: bold;
+            color: #764ba2;
+            font-size: 1.1rem;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .status-live {
+            background: #ff4444;
+            color: white;
+            animation: pulse 2s infinite;
+        }
+
+        .status-ns {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .status-ft {
+            background: #666;
+            color: white;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+            font-size: 1.2rem;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .confidence-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #ffd89b, #19547b);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #764ba2;
+        }
+    </style>
 </head>
 <body>
-<h1>⚽ Live Football Predictions</h1>
-<div id="matches"></div>
+    <div class="header">
+        <h1>
+            ⚽ Live Football Predictions
+            <span class="live-indicator"></span>
+        </h1>
+        <div class="stats-bar">
+            <div class="stat-item">📊 Matches: <span id="matchCount">0</span></div>
+            <div class="stat-item">🎯 Predictions: <span id="predCount">0</span></div>
+            <div class="stat-item">🔄 Last Update: <span id="lastUpdate">--:--</span></div>
+        </div>
+    </div>
 
-<script>
-const evtSource = new EventSource("/events");
+    <div class="container">
+        <!-- LEFT: Today's Matches -->
+        <div class="section">
+            <h2>📅 Today's Matches</h2>
+            <div id="matchesContainer">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading matches...
+                </div>
+            </div>
+        </div>
 
-evtSource.onmessage = function(e){
-    const data = JSON.parse(e.data);
-    const container = document.getElementById("matches");
-    container.innerHTML = "";
+        <!-- RIGHT: Predictions -->
+        <div class="section">
+            <h2>🎯 AI Predictions</h2>
+            <div id="predictionsContainer">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading predictions...
+                </div>
+            </div>
+        </div>
+    </div>
 
-    data.matches.forEach(match=>{
-        const div = document.createElement("div");
-        div.className = "match";
-        div.innerHTML = `
-            <h2>${match.home} vs ${match.away}</h2>
-            <div class="prob">🏆 Winner Prob: Home ${match.winnerProb.home}%, Draw ${match.winnerProb.draw}%, Away ${match.winnerProb.away}%</div>
-            <div class="prob">⚽ BTTS: ${match.bttsProb}%</div>
-            <div class="prob">⏱ Last 10 min Goal: ${match.last10Prob}%</div>
-            <div class="prob">xG: Home ${match.xG.home}, Away ${match.xG.away}, Total ${match.xG.total}</div>
-            <div class="prob strong">💡 Strong Markets: ${match.strongMarkets.map(s=>s.market + " ("+s.prob+"%)").join(", ")}</div>
-        `;
-        container.appendChild(div);
-    });
-};
-</script>
+    <script>
+        let eventSource = null;
+
+        // Format date/time
+        function formatDateTime(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleString('en-GB', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                day: '2-digit',
+                month: 'short'
+            });
+        }
+
+        // Get status badge
+        function getStatusBadge(status) {
+            const statusMap = {
+                'NS': { class: 'status-ns', text: 'Not Started' },
+                'LIVE': { class: 'status-live', text: 'LIVE' },
+                '1H': { class: 'status-live', text: 'LIVE - 1H' },
+                '2H': { class: 'status-live', text: 'LIVE - 2H' },
+                'HT': { class: 'status-live', text: 'Half Time' },
+                'FT': { class: 'status-ft', text: 'Full Time' },
+                'ET': { class: 'status-live', text: 'Extra Time' },
+                'P': { class: 'status-live', text: 'Penalties' }
+            };
+            const s = statusMap[status] || { class: 'status-ns', text: status };
+            return `<span class="status-badge ${s.class}">${s.text}</span>`;
+        }
+
+        // Render matches
+        function renderMatches(matches) {
+            const container = document.getElementById('matchesContainer');
+            
+            if (!matches || matches.length === 0) {
+                container.innerHTML = '<div class="empty-state">📭 No matches found for today</div>';
+                return;
+            }
+
+            container.innerHTML = matches.map(match => `
+                <div class="match-card">
+                    <div class="match-header">
+                        <span class="league-badge">${match.league_name || 'Unknown League'}</span>
+                        ${getStatusBadge(match.status)}
+                    </div>
+                    <div class="match-time">⏰ ${formatDateTime(match.match_date)}</div>
+                    <div class="teams">
+                        <div class="team">${match.home_team}</div>
+                        <div class="vs">VS</div>
+                        <div class="team">${match.away_team}</div>
+                    </div>
+                    ${match.status !== 'NS' ? `
+                        <div class="score">
+                            <span>${match.home_score || 0}</span>
+                            <span>-</span>
+                            <span>${match.away_score || 0}</span>
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+
+            document.getElementById('matchCount').textContent = matches.length;
+        }
+
+        // Render predictions
+        function renderPredictions(predictions) {
+            const container = document.getElementById('predictionsContainer');
+            
+            if (!predictions || predictions.length === 0) {
+                container.innerHTML = '<div class="empty-state">🤖 Predictions loading...</div>';
+                return;
+            }
+
+            container.innerHTML = predictions.map(pred => `
+                <div class="prediction-card">
+                    <div class="match-header">
+                        <span class="league-badge">${pred.league || 'Unknown'}</span>
+                        <span class="confidence-badge">⭐ ${pred.confidence_score || 0}% Confidence</span>
+                    </div>
+                    <div class="teams">
+                        <div class="team">${pred.home_team}</div>
+                        <div class="vs">VS</div>
+                        <div class="team">${pred.away_team}</div>
+                    </div>
+
+                    <!-- Winner Probabilities -->
+                    <div class="prob-bars">
+                        <div class="prob-bar">
+                            <div class="prob-label">Home Win</div>
+                            <div class="prob-value home">${pred.winner_prob?.home || 0}%</div>
+                        </div>
+                        <div class="prob-bar">
+                            <div class="prob-label">Draw</div>
+                            <div class="prob-value draw">${pred.winner_prob?.draw || 0}%</div>
+                        </div>
+                        <div class="prob-bar">
+                            <div class="prob-label">Away Win</div>
+                            <div class="prob-value away">${pred.winner_prob?.away || 0}%</div>
+                        </div>
+                    </div>
+
+                    <!-- xG Display -->
+                    <div class="xg-display">
+                        <div class="xg-item">
+                            <div class="xg-label">Home xG</div>
+                            <div class="xg-value">${pred.xG?.home || 0}</div>
+                        </div>
+                        <div class="xg-item">
+                            <div class="xg-label">Total xG</div>
+                            <div class="xg-value">${pred.xG?.total || 0}</div>
+                        </div>
+                        <div class="xg-item">
+                            <div class="xg-label">Away xG</div>
+                            <div class="xg-value">${pred.xG?.away || 0}</div>
+                        </div>
+                    </div>
+
+                    <!-- Markets -->
+                    <div class="markets">
+                        <div class="market-item">
+                            <div class="market-label">BTTS</div>
+                            <div class="market-value">${pred.btts_prob || 0}%</div>
+                        </div>
+                        <div class="market-item">
+                            <div class="market-label">Over 2.5</div>
+                            <div class="market-value">${pred.over_under?.['2.5'] || 0}%</div>
+                        </div>
+                        <div class="market-item">
+                            <div class="market-label">Over 3.5</div>
+                            <div class="market-value">${pred.over_under?.['3.5'] || 0}%</div>
+                        </div>
+                        <div class="market-item">
+                            <div class="market-label">Last 10 min</div>
+                            <div class="market-value">${pred.last10_prob || 0}%</div>
+                        </div>
+                    </div>
+
+                    <!-- Strong Markets -->
+                    ${pred.strong_markets && pred.strong_markets.length > 0 ? `
+                        <div class="strong-markets">
+                            <h4>🔥 High Confidence Markets (≥85%)</h4>
+                            ${pred.strong_markets.map(m => `
+                                <div class="strong-market-item">
+                                    <span>${m.market}</span>
+                                    <span>${m.prob}%</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+
+            document.getElementById('predCount').textContent = predictions.length;
+        }
+
+        // Update last update time
+        function updateLastUpdateTime() {
+            const now = new Date();
+            document.getElementById('lastUpdate').textContent = now.toLocaleTimeString('en-GB', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+
+        // Connect to SSE
+        function connectSSE() {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            eventSource = new EventSource('/events');
+
+            eventSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.matches) {
+                        renderMatches(data.matches);
+                    }
+                    
+                    if (data.predictions) {
+                        renderPredictions(data.predictions);
+                    }
+
+                    updateLastUpdateTime();
+                    console.log('✅ Data updated:', data.timestamp);
+                } catch (error) {
+                    console.error('❌ SSE Error:', error);
+                }
+            };
+
+            eventSource.onerror = () => {
+                console.log('❌ SSE connection lost. Reconnecting...');
+                setTimeout(connectSSE, 5000);
+            };
+        }
+
+        // Initial data fetch (fallback)
+        async function fetchInitialData() {
+            try {
+                const [matchesRes, predictionsRes] = await Promise.all([
+                    fetch('/api/matches'),
+                    fetch('/api/predictions')
+                ]);
+
+                const matchesData = await matchesRes.json();
+                const predictionsData = await predictionsRes.json();
+
+                if (matchesData.success) renderMatches(matchesData.data);
+                if (predictionsData.success) renderPredictions(predictionsData.data);
+                
+                updateLastUpdateTime();
+            } catch (error) {
+                console.error('❌ Initial fetch error:', error);
+            }
+        }
+
+        // Initialize
+        window.addEventListener('DOMContentLoaded', () => {
+            fetchInitialData();
+            connectSSE();
+            
+            // Update time every second
+            setInterval(updateLastUpdateTime, 1000);
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (eventSource) {
+                eventSource.close();
+            }
+        });
+    </script>
 </body>
 </html>
