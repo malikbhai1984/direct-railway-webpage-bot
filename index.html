@@ -1,3 +1,6 @@
+
+
+
 import React, { useState, useEffect } from 'react';
 import { Trophy, Clock, TrendingUp, Target, Bell, Activity, Wifi, WifiOff } from 'lucide-react';
 
@@ -158,53 +161,65 @@ export default function FootballPredictionSystem() {
       pred.winner_prob.away === highestProb ? 'Away Win' : 'Draw';
 
     return (
-      <div className="bg-white rounded-lg shadow-md p-5 mb-4 hover:shadow-lg transition-shadow">
+      <div className="bg-white rounded-lg shadow-md p-5 mb-4 hover:shadow-lg transition-shadow border-l-4 border-purple-500">
         <div className="text-center mb-4">
-          <div className="font-bold text-lg">{pred.home_team}</div>
+          <div className="font-bold text-lg text-gray-800">{pred.home_team}</div>
           <div className="text-gray-500 text-sm my-1">vs</div>
-          <div className="font-bold text-lg">{pred.away_team}</div>
+          <div className="font-bold text-lg text-gray-800">{pred.away_team}</div>
         </div>
 
-        <div className="flex items-center justify-center gap-2 mb-3">
-          <Target className="w-4 h-4 text-green-600" />
-          <span className="text-sm font-semibold">Confidence: {pred.confidence_score}%</span>
+        <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-lg p-3 mb-4">
+          <div className="flex items-center justify-center gap-2">
+            <Target className="w-5 h-5 text-green-600" />
+            <span className="text-sm font-bold text-green-800">
+              Prediction: {winnerLabel}
+            </span>
+          </div>
+          <div className="text-center mt-1">
+            <span className="text-xs text-gray-600">
+              Confidence: {pred.confidence_score}%
+            </span>
+          </div>
         </div>
 
-        <div className="text-xs text-gray-600 text-center mb-4">{pred.league}</div>
+        <div className="text-xs text-gray-600 text-center mb-4 font-medium">{pred.league}</div>
 
         {/* Winner Probabilities */}
         <div className="mb-4">
-          <div className="text-sm font-semibold mb-2">🎯 Match Result</div>
+          <div className="text-sm font-semibold mb-3 flex items-center gap-2">
+            <span>🎯</span>
+            <span>Match Outcome</span>
+          </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs">Home</span>
-              <div className="flex-1 mx-2 bg-gray-200 rounded-full h-2">
+              <span className="text-xs font-medium w-12">Home</span>
+              <div className="flex-1 mx-2 bg-gray-200 rounded-full h-2.5">
                 <div 
-                  className="bg-green-500 h-2 rounded-full transition-all" 
+                  className="bg-green-500 h-2.5 rounded-full transition-all" 
                   style={{ width: `${pred.winner_prob.home}%` }}
                 />
               </div>
-              <span className="text-xs font-bold">{pred.winner_prob.home}%</span>
+              <span className="text-xs font-bold w-10 text-right">{pred.winner_prob.home}%</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-xs">Draw</span>
-              <div className="flex-1 mx-2 bg-gray-200 rounded-full h-2">
+              <span className="text-xs font-medium w-12">Draw</span>
+              <div className="flex-1 mx-2 bg-gray-200 rounded-full h-2.5">
                 <div 
-                  className="bg-yellow-500 h-2 rounded-full transition-all" 
+                  className="bg-yellow-500 h-2.5 rounded-full transition-all" 
                   style={{ width: `${pred.winner_prob.draw}%` }}
                 />
               </div>
-              <span className="text-xs font-bold">{pred.winner_prob.draw}%</span>
+              <span className="text-xs font-bold w-10 text-right">{pred.winner_prob.draw}%</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-xs">Away</span>
-              <div className="flex-1 mx-2 bg-gray-200 rounded-full h-2">
+              <span className="text-xs font-medium w-12">Away</span>
+              <div className="flex-1 mx-2 bg-gray-200 rounded-full h-2.5">
                 <div 
-                  className="bg-blue-500 h-2 rounded-full transition-all" 
+                  className="bg-blue-500 h-2.5 rounded-full transition-all" 
                   style={{ width: `${pred.winner_prob.away}%` }}
                 />
               </div>
-              <span className="text-xs font-bold">{pred.winner_prob.away}%</span>
+              <span className="text-xs font-bold w-10 text-right">{pred.winner_prob.away}%</span>
             </div>
           </div>
         </div>
