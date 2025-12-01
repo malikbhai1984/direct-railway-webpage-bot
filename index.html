@@ -1,8 +1,7 @@
 
 
-
 import React, { useState, useEffect } from 'react';
-import { Trophy, Clock, TrendingUp, Target, Bell, Activity, Wifi, WifiOff } from 'lucide-react';
+import { Trophy, Clock, TrendingUp, Target, Bell, Activity, Wifi, WifiOff, AlertTriangle, Timer, Users, DollarSign, BarChart3, RefreshCw } from 'lucide-react';
 
 export default function FootballPredictionSystem() {
   const [activeTab, setActiveTab] = useState('matches');
@@ -12,90 +11,56 @@ export default function FootballPredictionSystem() {
   const [lastUpdate, setLastUpdate] = useState('');
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Mock data for demonstration
+  // Fetch real data from backend
   useEffect(() => {
-    const mockMatches = [
-      {
-        id: '536940',
-        league_name: 'Serie A',
-        home_team: 'Bologna FC 1909',
-        away_team: 'US Cremonese',
-        home_score: null,
-        away_score: null,
-        status: 'NS',
-        match_time_pkt: '02 Dec 2025, 12:45 AM',
-        venue: 'Stadio Renato Dall\'Ara',
-        home_logo: 'https://media.api-sports.io/football/teams/500.png',
-        away_logo: 'https://media.api-sports.io/football/teams/520.png'
-      },
-      {
-        id: '536941',
-        league_name: 'Premier League',
-        home_team: 'Manchester United',
-        away_team: 'Chelsea',
-        home_score: 2,
-        away_score: 1,
-        status: 'LIVE',
-        match_time_pkt: '01 Dec 2025, 10:30 PM',
-        venue: 'Old Trafford',
-        home_logo: 'https://media.api-sports.io/football/teams/33.png',
-        away_logo: 'https://media.api-sports.io/football/teams/49.png'
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const [matchRes, predRes] = await Promise.all([
+          fetch('http://localhost:8080/api/matches'),
+          fetch('http://localhost:8080/api/predictions')
+        ]);
+
+        const matchData = await matchRes.json();
+        const predData = await predRes.json();
+
+        if (matchData.success) {
+          setMatches(matchData.data || []);
+        }
+        
+        if (predData.success) {
+          const oldCount = predictions.length;
+          setPredictions(predData.data || []);
+          
+          if (oldCount > 0 && predData.data && predData.data.length > oldCount) {
+            setNewPredictions(predData.data.length - oldCount);
+            setTimeout(() => setNewPredictions(0), 10000);
+          }
+        }
+
+        setIsOnline(true);
+        setLastUpdate(new Date().toLocaleTimeString('en-PK', { 
+          hour: '2-digit', 
+          minute: '2-digit', 
+          hour12: true 
+        }));
+      } catch (err) {
+        console.error('Fetch error:', err);
+        setError(err.message);
+        setIsOnline(false);
+      } finally {
+        setLoading(false);
       }
-    ];
+    };
 
-    const mockPredictions = [
-      {
-        id: '1',
-        home_team: 'Bologna FC 1909',
-        away_team: 'US Cremonese',
-        league: 'Serie A',
-        confidence_score: 78,
-        winner_prob: { home: 45, draw: 30, away: 25 },
-        xG: { home: 1.8, away: 1.2 },
-        btts_prob: 62,
-        strong_markets: [
-          { market: 'Over 2.5', probability: 68 },
-          { market: 'Home Win', probability: 45 }
-        ]
-      },
-      {
-        id: '2',
-        home_team: 'Manchester United',
-        away_team: 'Chelsea',
-        league: 'Premier League',
-        confidence_score: 85,
-        winner_prob: { home: 52, draw: 25, away: 23 },
-        xG: { home: 2.1, away: 1.5 },
-        btts_prob: 71,
-        strong_markets: [
-          { market: 'Over 2.5', probability: 75 },
-          { market: 'BTTS', probability: 71 }
-        ]
-      }
-    ];
-
-    setMatches(mockMatches);
-    setPredictions(mockPredictions);
-    setLastUpdate(new Date().toLocaleTimeString('en-PK', { 
-      hour: '2-digit', 
-      minute: '2-digit', 
-      hour12: true 
-    }));
-    setLoading(false);
-  }, []);
-
-  // Auto-refresh simulation
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLastUpdate(new Date().toLocaleTimeString('en-PK', { 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        hour12: true 
-      }));
-    }, 60000);
+    fetchData();
+    const interval = setInterval(fetchData, 5 * 60 * 1000); // Every 5 minutes
     return () => clearInterval(interval);
-  }, []);
+  }, [predictions.length]);
 
   const getStatusBadge = (status) => {
     const statusMap = {
@@ -104,7 +69,8 @@ export default function FootballPredictionSystem() {
       '1H': { bg: 'bg-green-500 animate-pulse', text: '1st Half' },
       '2H': { bg: 'bg-green-500 animate-pulse', text: '2nd Half' },
       'HT': { bg: 'bg-yellow-500', text: 'Half Time' },
-      'FT': { bg: 'bg-blue-500', text: 'Full Time' }
+      'FT': { bg: 'bg-blue-500', text: 'Full Time' },
+      'SCHEDULED': { bg: 'bg-gray-500', text: 'Scheduled' }
     };
     const badge = statusMap[status] || { bg: 'bg-gray-500', text: status };
     return (
@@ -115,9 +81,9 @@ export default function FootballPredictionSystem() {
   };
 
   const MatchCard = ({ match }) => (
-    <div className="bg-white rounded-lg shadow-md p-4 mb-4 hover:shadow-lg transition-shadow">
+    <div className="bg-white rounded-lg shadow-md p-4 mb-4 hover:shadow-lg transition-all border-l-4 border-blue-500">
       <div className="flex justify-between items-center mb-3">
-        <span className="text-sm font-semibold text-blue-600">{match.league_name}</span>
+        <span className="text-sm font-semibold text-blue-600">{match.league_name || match.league || 'Unknown League'}</span>
         {getStatusBadge(match.status)}
       </div>
       
@@ -125,49 +91,58 @@ export default function FootballPredictionSystem() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-1">
             {match.home_logo && (
-              <img src={match.home_logo} alt={match.home_team} className="w-8 h-8" />
+              <img src={match.home_logo} alt={match.home_team} className="w-8 h-8 object-contain" />
             )}
-            <span className="font-medium">{match.home_team}</span>
+            <span className="font-medium text-gray-800">{match.home_team}</span>
           </div>
-          <span className="text-2xl font-bold mx-4">{match.home_score ?? '-'}</span>
+          <span className="text-2xl font-bold text-gray-900 mx-4">
+            {match.home_score !== null && match.home_score !== undefined ? match.home_score : '-'}
+          </span>
         </div>
         
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-1">
             {match.away_logo && (
-              <img src={match.away_logo} alt={match.away_team} className="w-8 h-8" />
+              <img src={match.away_logo} alt={match.away_team} className="w-8 h-8 object-contain" />
             )}
-            <span className="font-medium">{match.away_team}</span>
+            <span className="font-medium text-gray-800">{match.away_team}</span>
           </div>
-          <span className="text-2xl font-bold mx-4">{match.away_score ?? '-'}</span>
+          <span className="text-2xl font-bold text-gray-900 mx-4">
+            {match.away_score !== null && match.away_score !== undefined ? match.away_score : '-'}
+          </span>
         </div>
       </div>
 
       <div className="mt-4 pt-3 border-t flex justify-between text-xs text-gray-600">
-        <span>🕐 {match.match_time_pkt}</span>
-        <span>📍 {match.venue}</span>
+        <span className="flex items-center gap-1">
+          <Clock className="w-3 h-3" />
+          {match.match_time_pkt || match.match_time || 'TBD'}
+        </span>
+        <span>📍 {match.venue || 'Venue TBD'}</span>
       </div>
     </div>
   );
 
   const PredictionCard = ({ pred }) => {
     const highestProb = Math.max(
-      pred.winner_prob.home,
-      pred.winner_prob.draw,
-      pred.winner_prob.away
+      pred.winner_prob?.home || 0,
+      pred.winner_prob?.draw || 0,
+      pred.winner_prob?.away || 0
     );
     const winnerLabel = 
-      pred.winner_prob.home === highestProb ? 'Home Win' :
-      pred.winner_prob.away === highestProb ? 'Away Win' : 'Draw';
+      (pred.winner_prob?.home || 0) === highestProb ? 'Home Win' :
+      (pred.winner_prob?.away || 0) === highestProb ? 'Away Win' : 'Draw';
 
     return (
-      <div className="bg-white rounded-lg shadow-md p-5 mb-4 hover:shadow-lg transition-shadow border-l-4 border-purple-500">
+      <div className="bg-white rounded-lg shadow-md p-5 mb-4 hover:shadow-lg transition-all border-l-4 border-purple-500">
+        {/* Header */}
         <div className="text-center mb-4">
           <div className="font-bold text-lg text-gray-800">{pred.home_team}</div>
           <div className="text-gray-500 text-sm my-1">vs</div>
           <div className="font-bold text-lg text-gray-800">{pred.away_team}</div>
         </div>
 
+        {/* Prediction Badge */}
         <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-lg p-3 mb-4">
           <div className="flex items-center justify-center gap-2">
             <Target className="w-5 h-5 text-green-600" />
@@ -177,63 +152,156 @@ export default function FootballPredictionSystem() {
           </div>
           <div className="text-center mt-1">
             <span className="text-xs text-gray-600">
-              Confidence: {pred.confidence_score}%
+              Confidence: {pred.confidence_score || 0}%
             </span>
           </div>
         </div>
 
         <div className="text-xs text-gray-600 text-center mb-4 font-medium">{pred.league}</div>
 
-        {/* Winner Probabilities */}
-        <div className="mb-4">
-          <div className="text-sm font-semibold mb-3 flex items-center gap-2">
-            <span>🎯</span>
-            <span>Match Outcome</span>
+        {/* Risk Warning */}
+        {pred.risk_warning && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="text-xs text-red-700">{pred.risk_warning}</div>
           </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium w-12">Home</span>
-              <div className="flex-1 mx-2 bg-gray-200 rounded-full h-2.5">
-                <div 
-                  className="bg-green-500 h-2.5 rounded-full transition-all" 
-                  style={{ width: `${pred.winner_prob.home}%` }}
-                />
-              </div>
-              <span className="text-xs font-bold w-10 text-right">{pred.winner_prob.home}%</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium w-12">Draw</span>
-              <div className="flex-1 mx-2 bg-gray-200 rounded-full h-2.5">
-                <div 
-                  className="bg-yellow-500 h-2.5 rounded-full transition-all" 
-                  style={{ width: `${pred.winner_prob.draw}%` }}
-                />
-              </div>
-              <span className="text-xs font-bold w-10 text-right">{pred.winner_prob.draw}%</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium w-12">Away</span>
-              <div className="flex-1 mx-2 bg-gray-200 rounded-full h-2.5">
-                <div 
-                  className="bg-blue-500 h-2.5 rounded-full transition-all" 
-                  style={{ width: `${pred.winner_prob.away}%` }}
-                />
-              </div>
-              <span className="text-xs font-bold w-10 text-right">{pred.winner_prob.away}%</span>
-            </div>
-          </div>
-        </div>
+        )}
 
-        {/* Expected Goals */}
-        <div className="bg-gray-50 rounded p-3 mb-3">
-          <div className="text-sm font-semibold mb-2">⚽ Expected Goals</div>
-          <div className="text-center text-2xl font-bold">
-            {pred.xG.home.toFixed(1)} - {pred.xG.away.toFixed(1)}
+        {/* Winner Probabilities */}
+        {pred.winner_prob && (
+          <div className="mb-4">
+            <div className="text-sm font-semibold mb-3 flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              <span>Match Outcome</span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium w-12">Home</span>
+                <div className="flex-1 mx-2 bg-gray-200 rounded-full h-2.5">
+                  <div 
+                    className="bg-green-500 h-2.5 rounded-full transition-all" 
+                    style={{ width: `${pred.winner_prob.home || 0}%` }}
+                  />
+                </div>
+                <span className="text-xs font-bold w-10 text-right">{pred.winner_prob.home || 0}%</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium w-12">Draw</span>
+                <div className="flex-1 mx-2 bg-gray-200 rounded-full h-2.5">
+                  <div 
+                    className="bg-yellow-500 h-2.5 rounded-full transition-all" 
+                    style={{ width: `${pred.winner_prob.draw || 0}%` }}
+                  />
+                </div>
+                <span className="text-xs font-bold w-10 text-right">{pred.winner_prob.draw || 0}%</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium w-12">Away</span>
+                <div className="flex-1 mx-2 bg-gray-200 rounded-full h-2.5">
+                  <div 
+                    className="bg-blue-500 h-2.5 rounded-full transition-all" 
+                    style={{ width: `${pred.winner_prob.away || 0}%` }}
+                  />
+                </div>
+                <span className="text-xs font-bold w-10 text-right">{pred.winner_prob.away || 0}%</span>
+              </div>
+            </div>
           </div>
-          <div className="text-center text-xs text-gray-600 mt-2">
-            BTTS: {pred.btts_prob}%
+        )}
+
+        {/* Expected Goals & BTTS */}
+        {pred.xG && (
+          <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-3 mb-3">
+            <div className="text-sm font-semibold mb-2 flex items-center gap-2">
+              <Target className="w-4 h-4" />
+              <span>Expected Goals (xG)</span>
+            </div>
+            <div className="text-center text-2xl font-bold text-gray-800">
+              {pred.xG.home?.toFixed(1) || '0.0'} - {pred.xG.away?.toFixed(1) || '0.0'}
+            </div>
+            {pred.btts_prob && (
+              <div className="text-center text-xs text-gray-600 mt-2">
+                Both Teams To Score: {pred.btts_prob}%
+              </div>
+            )}
           </div>
-        </div>
+        )}
+
+        {/* Correct Score Predictions */}
+        {pred.correct_scores && pred.correct_scores.length > 0 && (
+          <div className="mb-3">
+            <div className="text-sm font-semibold mb-2">🎯 Top Score Predictions</div>
+            <div className="grid grid-cols-3 gap-2">
+              {pred.correct_scores.slice(0, 6).map((score, idx) => (
+                <div key={idx} className="bg-purple-50 rounded p-2 text-center">
+                  <div className="text-xs font-bold text-purple-800">{score.score}</div>
+                  <div className="text-xs text-purple-600">{score.probability}%</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Top Goal Minutes */}
+        {pred.top_goal_minutes && pred.top_goal_minutes.length > 0 && (
+          <div className="mb-3">
+            <div className="text-sm font-semibold mb-2 flex items-center gap-2">
+              <Timer className="w-4 h-4" />
+              <span>Likely Goal Times</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {pred.top_goal_minutes.slice(0, 4).map((min, idx) => (
+                <span key={idx} className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded">
+                  {min.minute}' ({min.probability}%)
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* H2H Analysis */}
+        {pred.h2h_analysis && (
+          <div className="bg-indigo-50 rounded-lg p-3 mb-3">
+            <div className="text-sm font-semibold mb-2 flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              <span>Head-to-Head</span>
+            </div>
+            <div className="text-xs space-y-1 text-gray-700">
+              {pred.h2h_analysis.recent_form && (
+                <div>Form: {pred.h2h_analysis.recent_form}</div>
+              )}
+              {pred.h2h_analysis.last_5 && (
+                <div>Last 5: {pred.h2h_analysis.last_5}</div>
+              )}
+              {pred.h2h_analysis.summary && (
+                <div className="text-indigo-700 font-medium">{pred.h2h_analysis.summary}</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Odds Suggestions */}
+        {pred.odds_suggestions && pred.odds_suggestions.length > 0 && (
+          <div className="mb-3">
+            <div className="text-sm font-semibold mb-2 flex items-center gap-2">
+              <DollarSign className="w-4 h-4" />
+              <span>Value Bets</span>
+            </div>
+            <div className="space-y-1">
+              {pred.odds_suggestions.map((odds, idx) => (
+                <div key={idx} className="bg-green-50 border border-green-200 rounded p-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="font-medium text-green-800">{odds.market}</span>
+                    <span className="text-green-600">{odds.suggested_odds}</span>
+                  </div>
+                  {odds.value && (
+                    <div className="text-green-600 text-xs mt-1">Value: {odds.value}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Strong Markets */}
         {pred.strong_markets && pred.strong_markets.length > 0 && (
@@ -256,20 +324,29 @@ export default function FootballPredictionSystem() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 shadow-lg">
+      <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white p-6 shadow-lg">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <Trophy className="w-8 h-8" />
-              <h1 className="text-3xl font-bold">Football Prediction System</h1>
+              <div>
+                <h1 className="text-3xl font-bold">Football Prediction System</h1>
+                <p className="text-sm text-blue-100">Enhanced with AI Analytics</p>
+              </div>
             </div>
             <div className="flex items-center gap-3">
               {isOnline ? (
-                <Wifi className="w-5 h-5 text-green-300" />
+                <div className="flex items-center gap-2 bg-green-500/20 px-3 py-1 rounded-full">
+                  <Wifi className="w-4 h-4 text-green-300" />
+                  <span className="text-xs">Online</span>
+                </div>
               ) : (
-                <WifiOff className="w-5 h-5 text-red-300" />
+                <div className="flex items-center gap-2 bg-red-500/20 px-3 py-1 rounded-full">
+                  <WifiOff className="w-4 h-4 text-red-300" />
+                  <span className="text-xs">Offline</span>
+                </div>
               )}
               {newPredictions > 0 && (
                 <div className="bg-red-500 text-white px-3 py-1 rounded-full text-sm flex items-center gap-1 animate-bounce">
@@ -283,11 +360,15 @@ export default function FootballPredictionSystem() {
           <div className="flex items-center gap-6 text-sm">
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4" />
-              <span>Last Update: {lastUpdate}</span>
+              <span>Last Update: {lastUpdate || 'Never'}</span>
             </div>
             <div className="flex items-center gap-2">
               <Activity className="w-4 h-4" />
               <span>Auto-refresh: 5 min</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" />
+              <span>Enhanced Analytics</span>
             </div>
           </div>
         </div>
@@ -314,32 +395,48 @@ export default function FootballPredictionSystem() {
                 : 'bg-white text-gray-700 hover:bg-gray-100'
             }`}
           >
-            🎯 Predictions ({predictions.length})
+            🎯 AI Predictions ({predictions.length})
           </button>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
+            <div>
+              <div className="font-semibold text-red-800">Connection Error</div>
+              <div className="text-sm text-red-700">{error}</div>
+              <div className="text-xs text-red-600 mt-1">Make sure backend is running on http://localhost:8080</div>
+            </div>
+          </div>
+        )}
 
         {/* Content */}
         {loading ? (
           <div className="text-center py-20">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading data...</p>
+            <RefreshCw className="w-16 h-16 text-blue-600 animate-spin mx-auto" />
+            <p className="mt-4 text-gray-600">Loading data from server...</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {activeTab === 'matches' ? (
               matches.length > 0 ? (
-                matches.map((match) => <MatchCard key={match.id} match={match} />)
+                matches.map((match) => <MatchCard key={match.id || match.match_id} match={match} />)
               ) : (
-                <div className="col-span-full text-center py-20 text-gray-500">
-                  No matches available
+                <div className="col-span-full text-center py-20">
+                  <Activity className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500 text-lg font-medium">No live matches available</p>
+                  <p className="text-gray-400 text-sm mt-2">Matches will appear here when they become available</p>
                 </div>
               )
             ) : (
               predictions.length > 0 ? (
-                predictions.map((pred) => <PredictionCard key={pred.id} pred={pred} />)
+                predictions.map((pred) => <PredictionCard key={pred.id || pred._id} pred={pred} />)
               ) : (
-                <div className="col-span-full text-center py-20 text-gray-500">
-                  No predictions available
+                <div className="col-span-full text-center py-20">
+                  <Target className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500 text-lg font-medium">No predictions available</p>
+                  <p className="text-gray-400 text-sm mt-2">Predictions will be generated when matches are available</p>
                 </div>
               )
             )}
