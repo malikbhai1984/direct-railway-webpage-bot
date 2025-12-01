@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Clock, TrendingUp, Target, Bell, Activity } from 'lucide-react';
+import { Trophy, Clock, TrendingUp, Target, Bell, Activity, Wifi, WifiOff } from 'lucide-react';
 
 export default function FootballPredictionSystem() {
   const [activeTab, setActiveTab] = useState('matches');
@@ -8,47 +8,91 @@ export default function FootballPredictionSystem() {
   const [newPredictions, setNewPredictions] = useState(0);
   const [lastUpdate, setLastUpdate] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isOnline, setIsOnline] = useState(true);
 
-  // Fetch data from backend
+  // Mock data for demonstration
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [matchRes, predRes] = await Promise.all([
-          fetch('/api/matches'),
-          fetch('/api/predictions')
-        ]);
-        
-        const matchData = await matchRes.json();
-        const predData = await predRes.json();
-        
-        if (matchData.success) setMatches(matchData.data);
-        if (predData.success) {
-          const oldCount = predictions.length;
-          setPredictions(predData.data);
-          
-          // Detect new predictions
-          if (oldCount > 0 && predData.data.length > oldCount) {
-            setNewPredictions(predData.data.length - oldCount);
-            setTimeout(() => setNewPredictions(0), 10000);
-          }
-        }
-        
-        setLastUpdate(new Date().toLocaleTimeString('en-PK', { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          hour12: true 
-        }));
-        setLoading(false);
-      } catch (err) {
-        console.error('Fetch error:', err);
-        setLoading(false);
+    const mockMatches = [
+      {
+        id: '536940',
+        league_name: 'Serie A',
+        home_team: 'Bologna FC 1909',
+        away_team: 'US Cremonese',
+        home_score: null,
+        away_score: null,
+        status: 'NS',
+        match_time_pkt: '02 Dec 2025, 12:45 AM',
+        venue: 'Stadio Renato Dall\'Ara',
+        home_logo: 'https://media.api-sports.io/football/teams/500.png',
+        away_logo: 'https://media.api-sports.io/football/teams/520.png'
+      },
+      {
+        id: '536941',
+        league_name: 'Premier League',
+        home_team: 'Manchester United',
+        away_team: 'Chelsea',
+        home_score: 2,
+        away_score: 1,
+        status: 'LIVE',
+        match_time_pkt: '01 Dec 2025, 10:30 PM',
+        venue: 'Old Trafford',
+        home_logo: 'https://media.api-sports.io/football/teams/33.png',
+        away_logo: 'https://media.api-sports.io/football/teams/49.png'
       }
-    };
+    ];
 
-    fetchData();
-    const interval = setInterval(fetchData, 5 * 60 * 1000); // Every 5 minutes
+    const mockPredictions = [
+      {
+        id: '1',
+        home_team: 'Bologna FC 1909',
+        away_team: 'US Cremonese',
+        league: 'Serie A',
+        confidence_score: 78,
+        winner_prob: { home: 45, draw: 30, away: 25 },
+        xG: { home: 1.8, away: 1.2 },
+        btts_prob: 62,
+        strong_markets: [
+          { market: 'Over 2.5', probability: 68 },
+          { market: 'Home Win', probability: 45 }
+        ]
+      },
+      {
+        id: '2',
+        home_team: 'Manchester United',
+        away_team: 'Chelsea',
+        league: 'Premier League',
+        confidence_score: 85,
+        winner_prob: { home: 52, draw: 25, away: 23 },
+        xG: { home: 2.1, away: 1.5 },
+        btts_prob: 71,
+        strong_markets: [
+          { market: 'Over 2.5', probability: 75 },
+          { market: 'BTTS', probability: 71 }
+        ]
+      }
+    ];
+
+    setMatches(mockMatches);
+    setPredictions(mockPredictions);
+    setLastUpdate(new Date().toLocaleTimeString('en-PK', { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      hour12: true 
+    }));
+    setLoading(false);
+  }, []);
+
+  // Auto-refresh simulation
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLastUpdate(new Date().toLocaleTimeString('en-PK', { 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        hour12: true 
+      }));
+    }, 60000);
     return () => clearInterval(interval);
-  }, [predictions.length]);
+  }, []);
 
   const getStatusBadge = (status) => {
     const statusMap = {
@@ -61,53 +105,43 @@ export default function FootballPredictionSystem() {
     };
     const badge = statusMap[status] || { bg: 'bg-gray-500', text: status };
     return (
-      <span className={`px-2 py-1 text-xs font-bold text-white rounded ${badge.bg}`}>
+      <span className={`${badge.bg} text-white text-xs px-3 py-1 rounded-full font-semibold`}>
         {badge.text}
       </span>
     );
   };
 
   const MatchCard = ({ match }) => (
-    <div className="bg-white rounded-lg shadow-md p-4 mb-3 border-l-4 border-blue-500 hover:shadow-lg transition-shadow">
-      <div className="flex justify-between items-start mb-3">
-        <div className="flex items-center gap-2">
-          <Activity className="w-4 h-4 text-blue-500" />
-          <span className="text-xs font-semibold text-gray-600">{match.league_name}</span>
-        </div>
+    <div className="bg-white rounded-lg shadow-md p-4 mb-4 hover:shadow-lg transition-shadow">
+      <div className="flex justify-between items-center mb-3">
+        <span className="text-sm font-semibold text-blue-600">{match.league_name}</span>
         {getStatusBadge(match.status)}
       </div>
       
-      <div className="space-y-2">
+      <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-1">
             {match.home_logo && (
-              <img src={match.home_logo} alt="" className="w-6 h-6 object-contain" />
+              <img src={match.home_logo} alt={match.home_team} className="w-8 h-8" />
             )}
-            <span className="font-medium text-gray-800">{match.home_team}</span>
+            <span className="font-medium">{match.home_team}</span>
           </div>
-          <span className="text-2xl font-bold text-gray-900 mx-3">
-            {match.home_score ?? '-'}
-          </span>
+          <span className="text-2xl font-bold mx-4">{match.home_score ?? '-'}</span>
         </div>
         
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-1">
             {match.away_logo && (
-              <img src={match.away_logo} alt="" className="w-6 h-6 object-contain" />
+              <img src={match.away_logo} alt={match.away_team} className="w-8 h-8" />
             )}
-            <span className="font-medium text-gray-800">{match.away_team}</span>
+            <span className="font-medium">{match.away_team}</span>
           </div>
-          <span className="text-2xl font-bold text-gray-900 mx-3">
-            {match.away_score ?? '-'}
-          </span>
+          <span className="text-2xl font-bold mx-4">{match.away_score ?? '-'}</span>
         </div>
       </div>
-      
-      <div className="mt-3 pt-3 border-t border-gray-200 flex justify-between text-xs text-gray-500">
-        <div className="flex items-center gap-1">
-          <Clock className="w-3 h-3" />
-          <span>{match.match_time_pkt}</span>
-        </div>
+
+      <div className="mt-4 pt-3 border-t flex justify-between text-xs text-gray-600">
+        <span>🕐 {match.match_time_pkt}</span>
         <span>📍 {match.venue}</span>
       </div>
     </div>
@@ -119,236 +153,184 @@ export default function FootballPredictionSystem() {
       pred.winner_prob.draw,
       pred.winner_prob.away
     );
-    
     const winnerLabel = 
       pred.winner_prob.home === highestProb ? 'Home Win' :
       pred.winner_prob.away === highestProb ? 'Away Win' : 'Draw';
 
     return (
-      <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-lg shadow-md p-4 mb-3 border-l-4 border-purple-500 hover:shadow-lg transition-shadow">
-        <div className="flex justify-between items-start mb-3">
-          <div>
-            <div className="font-bold text-gray-800 text-sm">{pred.home_team}</div>
-            <div className="text-xs text-gray-500">vs</div>
-            <div className="font-bold text-gray-800 text-sm">{pred.away_team}</div>
-          </div>
-          <div className="text-right">
-            <div className="flex items-center gap-1 text-xs text-purple-600 font-semibold">
-              <Target className="w-3 h-3" />
-              Confidence: {pred.confidence_score}%
-            </div>
-            <div className="text-xs text-gray-500 mt-1">{pred.league}</div>
-          </div>
+      <div className="bg-white rounded-lg shadow-md p-5 mb-4 hover:shadow-lg transition-shadow">
+        <div className="text-center mb-4">
+          <div className="font-bold text-lg">{pred.home_team}</div>
+          <div className="text-gray-500 text-sm my-1">vs</div>
+          <div className="font-bold text-lg">{pred.away_team}</div>
         </div>
 
+        <div className="flex items-center justify-center gap-2 mb-3">
+          <Target className="w-4 h-4 text-green-600" />
+          <span className="text-sm font-semibold">Confidence: {pred.confidence_score}%</span>
+        </div>
+
+        <div className="text-xs text-gray-600 text-center mb-4">{pred.league}</div>
+
         {/* Winner Probabilities */}
-        <div className="bg-white rounded-lg p-3 mb-3">
-          <div className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1">
-            <Trophy className="w-3 h-3" />
-            Match Result
-          </div>
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className={`p-2 rounded ${pred.winner_prob.home === highestProb ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-50'}`}>
-              <div className="text-xs text-gray-600">Home</div>
-              <div className="text-lg font-bold text-green-600">{pred.winner_prob.home}%</div>
+        <div className="mb-4">
+          <div className="text-sm font-semibold mb-2">🎯 Match Result</div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs">Home</span>
+              <div className="flex-1 mx-2 bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-green-500 h-2 rounded-full transition-all" 
+                  style={{ width: `${pred.winner_prob.home}%` }}
+                />
+              </div>
+              <span className="text-xs font-bold">{pred.winner_prob.home}%</span>
             </div>
-            <div className={`p-2 rounded ${pred.winner_prob.draw === highestProb ? 'bg-yellow-100 border-2 border-yellow-500' : 'bg-gray-50'}`}>
-              <div className="text-xs text-gray-600">Draw</div>
-              <div className="text-lg font-bold text-yellow-600">{pred.winner_prob.draw}%</div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs">Draw</span>
+              <div className="flex-1 mx-2 bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-yellow-500 h-2 rounded-full transition-all" 
+                  style={{ width: `${pred.winner_prob.draw}%` }}
+                />
+              </div>
+              <span className="text-xs font-bold">{pred.winner_prob.draw}%</span>
             </div>
-            <div className={`p-2 rounded ${pred.winner_prob.away === highestProb ? 'bg-blue-100 border-2 border-blue-500' : 'bg-gray-50'}`}>
-              <div className="text-xs text-gray-600">Away</div>
-              <div className="text-lg font-bold text-blue-600">{pred.winner_prob.away}%</div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs">Away</span>
+              <div className="flex-1 mx-2 bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-500 h-2 rounded-full transition-all" 
+                  style={{ width: `${pred.winner_prob.away}%` }}
+                />
+              </div>
+              <span className="text-xs font-bold">{pred.winner_prob.away}%</span>
             </div>
           </div>
         </div>
 
         {/* Expected Goals */}
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          <div className="bg-white rounded p-2">
-            <div className="text-xs text-gray-600">Expected Goals</div>
-            <div className="text-sm font-bold text-purple-600">
-              {pred.xG.home.toFixed(1)} - {pred.xG.away.toFixed(1)}
-            </div>
+        <div className="bg-gray-50 rounded p-3 mb-3">
+          <div className="text-sm font-semibold mb-2">⚽ Expected Goals</div>
+          <div className="text-center text-2xl font-bold">
+            {pred.xG.home.toFixed(1)} - {pred.xG.away.toFixed(1)}
           </div>
-          <div className="bg-white rounded p-2">
-            <div className="text-xs text-gray-600">BTTS</div>
-            <div className="text-sm font-bold text-orange-600">{pred.btts_prob}%</div>
+          <div className="text-center text-xs text-gray-600 mt-2">
+            BTTS: {pred.btts_prob}%
           </div>
         </div>
 
         {/* Strong Markets */}
         {pred.strong_markets && pred.strong_markets.length > 0 && (
-          <div className="bg-green-100 border-l-4 border-green-500 rounded p-2">
-            <div className="text-xs font-semibold text-green-800 mb-1 flex items-center gap-1">
-              <TrendingUp className="w-3 h-3" />
-              Strong Bets (≥85%)
-            </div>
-            <div className="space-y-1">
-              {pred.strong_markets.slice(0, 3).map((market, idx) => (
-                <div key={idx} className="flex justify-between text-xs">
-                  <span className="text-green-700 font-medium">{market.market}</span>
-                  <span className="text-green-600 font-bold">{market.prob}%</span>
-                </div>
+          <div>
+            <div className="text-sm font-semibold mb-2">💎 Strong Markets</div>
+            <div className="flex flex-wrap gap-2">
+              {pred.strong_markets.map((market, idx) => (
+                <span 
+                  key={idx} 
+                  className="bg-purple-100 text-purple-800 text-xs px-3 py-1 rounded-full"
+                >
+                  {market.market} ({market.probability}%)
+                </span>
               ))}
             </div>
           </div>
         )}
-
-        {/* Over/Under Preview */}
-        <div className="mt-2 flex gap-2 text-xs">
-          <div className="bg-white rounded px-2 py-1 flex-1 text-center">
-            <span className="text-gray-600">O2.5:</span>
-            <span className="font-bold text-purple-600 ml-1">
-              {pred.over_under?.['2.5'] || 'N/A'}%
-            </span>
-          </div>
-          <div className="bg-white rounded px-2 py-1 flex-1 text-center">
-            <span className="text-gray-600">Last10:</span>
-            <span className="font-bold text-blue-600 ml-1">{pred.last10_prob}%</span>
-          </div>
-        </div>
-
-        <div className="mt-2 text-xs text-gray-500 text-center">
-          Updated: {new Date(pred.updated_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}
-        </div>
       </div>
     );
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
       {/* Header */}
-      <div className="max-w-7xl mx-auto mb-6">
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
-                <Trophy className="text-yellow-500" />
-                Football Prediction System
-              </h1>
-              <p className="text-sm text-gray-600 mt-1">Pakistan Time Zone • Real-time Updates</p>
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 shadow-lg">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <Trophy className="w-8 h-8" />
+              <h1 className="text-3xl font-bold">Football Prediction System</h1>
             </div>
-            <div className="text-right">
-              <div className="text-sm text-gray-600">Last Update</div>
-              <div className="text-lg font-bold text-blue-600">{lastUpdate}</div>
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => setActiveTab('matches')}
-              className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${
-                activeTab === 'matches'
-                  ? 'bg-blue-500 text-white shadow-lg'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              <div className="flex items-center justify-center gap-2">
-                <Activity className="w-5 h-5" />
-                Live Matches ({matches.length})
-              </div>
-            </button>
-            
-            <button
-              onClick={() => setActiveTab('predictions')}
-              className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all relative ${
-                activeTab === 'predictions'
-                  ? 'bg-purple-500 text-white shadow-lg'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              <div className="flex items-center justify-center gap-2">
-                <Target className="w-5 h-5" />
-                Today's Predictions ({predictions.length})
-              </div>
+            <div className="flex items-center gap-3">
+              {isOnline ? (
+                <Wifi className="w-5 h-5 text-green-300" />
+              ) : (
+                <WifiOff className="w-5 h-5 text-red-300" />
+              )}
               {newPredictions > 0 && (
-                <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-8 h-8 flex items-center justify-center animate-bounce shadow-lg">
-                  <Bell className="w-4 h-4 animate-pulse" />
+                <div className="bg-red-500 text-white px-3 py-1 rounded-full text-sm flex items-center gap-1 animate-bounce">
+                  <Bell className="w-4 h-4" />
+                  {newPredictions} new
                 </div>
               )}
-            </button>
-          </div>
-
-          {/* New Predictions Notification */}
-          {newPredictions > 0 && (
-            <div className="mt-4 bg-gradient-to-r from-red-500 to-orange-500 text-white px-4 py-3 rounded-lg shadow-lg animate-pulse">
-              <div className="flex items-center gap-2 justify-center font-bold">
-                <Bell className="w-5 h-5 animate-bounce" />
-                <span className="text-lg">{newPredictions} New Prediction{newPredictions > 1 ? 's' : ''} Available!</span>
-                <Bell className="w-5 h-5 animate-bounce" />
-              </div>
             </div>
-          )}
+          </div>
+          
+          <div className="flex items-center gap-6 text-sm">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4" />
+              <span>Last Update: {lastUpdate}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4" />
+              <span>Auto-refresh: 5 min</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="max-w-7xl mx-auto">
+      {/* Tabs */}
+      <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className="flex gap-4 mb-6">
+          <button
+            onClick={() => setActiveTab('matches')}
+            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+              activeTab === 'matches'
+                ? 'bg-blue-600 text-white shadow-lg'
+                : 'bg-white text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            📊 Live Matches ({matches.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('predictions')}
+            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+              activeTab === 'predictions'
+                ? 'bg-purple-600 text-white shadow-lg'
+                : 'bg-white text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            🎯 Predictions ({predictions.length})
+          </button>
+        </div>
+
+        {/* Content */}
         {loading ? (
-          <div className="bg-white rounded-lg shadow-lg p-12 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading data...</p>
+          <div className="text-center py-20">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading data...</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {activeTab === 'matches' ? (
               matches.length > 0 ? (
-                matches.map((match) => <MatchCard key={match.match_id} match={match} />)
+                matches.map((match) => <MatchCard key={match.id} match={match} />)
               ) : (
-                <div className="col-span-full bg-white rounded-lg shadow-lg p-12 text-center">
-                  <Activity className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-xl font-semibold text-gray-600">No matches available</p>
-                  <p className="text-sm text-gray-500 mt-2">Check back later for live matches</p>
+                <div className="col-span-full text-center py-20 text-gray-500">
+                  No matches available
                 </div>
               )
             ) : (
               predictions.length > 0 ? (
-                predictions.map((pred) => <PredictionCard key={pred.match_id} pred={pred} />)
+                predictions.map((pred) => <PredictionCard key={pred.id} pred={pred} />)
               ) : (
-                <div className="col-span-full bg-white rounded-lg shadow-lg p-12 text-center">
-                  <Target className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-xl font-semibold text-gray-600">No predictions available</p>
-                  <p className="text-sm text-gray-500 mt-2">Predictions will appear when matches are scheduled</p>
+                <div className="col-span-full text-center py-20 text-gray-500">
+                  No predictions available
                 </div>
               )
             )}
           </div>
         )}
       </div>
-
-      {/* Footer Stats */}
-      <div className="max-w-7xl mx-auto mt-6">
-        <div className="bg-white rounded-lg shadow-lg p-4">
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div>
-              <div className="text-2xl font-bold text-blue-600">{matches.length}</div>
-              <div className="text-xs text-gray-600">Total Matches</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-purple-600">{predictions.length}</div>
-              <div className="text-xs text-gray-600">Active Predictions</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-green-600">
-                {predictions.filter(p => p.strong_markets?.length > 0).length}
-              </div>
-              <div className="text-xs text-gray-600">High Confidence</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <style>{`
-        @keyframes blink {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
-        }
-        .animate-pulse {
-          animation: blink 2s infinite;
-        }
-      `}</style>
     </div>
   );
 }
