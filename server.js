@@ -1,5 +1,5 @@
-// server.js - Professional Football Prediction System
-// ✅ Fixed MongoDB Connection ✅ Pakistan Time Zone ✅ Last 100 Predictions
+// server.js - Enhanced Football Prediction System
+// ✅ Correct Score Predictions ✅ Top Goal Minutes ✅ H2H Analysis ✅ Odds Suggestions
 
 import express from "express";
 import axios from "axios";
@@ -18,8 +18,7 @@ app.use(cors());
 app.use(express.json());
 const PORT = process.env.PORT || 8080;
 
-// ===================== MONGODB CONNECTION (FIXED) =====================
-// Railway uses MONGO_PUBLIC_URL, also check common variants
+// ===================== MONGODB CONNECTION =====================
 const MONGO_URI = process.env.MONGO_URI || 
                   process.env.MONGODB_URI || 
                   process.env.MONGO_PUBLIC_URL ||
@@ -30,33 +29,16 @@ if (!MONGO_URI) {
   console.log("❌ CRITICAL ERROR: MongoDB URI not found!");
   console.log("💡 Available environment variables:");
   console.log(Object.keys(process.env).filter(k => k.includes('MONGO') || k.includes('DATABASE')));
-  console.log("💡 Add one of these: MONGO_URI, MONGO_PUBLIC_URL, or MONGODB_URI");
-  console.log("Example: mongodb+srv://user:pass@cluster.mongodb.net/football");
   process.exit(1);
 }
 
-console.log("✅ MongoDB URI found:", MONGO_URI.substring(0, 20) + "...");
-
-console.log("🔄 Connecting to MongoDB...");
+console.log("✅ MongoDB URI found");
 mongoose.connect(MONGO_URI)
-  .then(() => {
-    console.log("✅ MongoDB Connected Successfully!");
-    console.log("📦 Database:", mongoose.connection.name);
-  })
+  .then(() => console.log("✅ MongoDB Connected Successfully!"))
   .catch(err => {
-    console.log("❌ MongoDB Connection Failed!");
-    console.log("Error:", err.message);
+    console.log("❌ MongoDB Connection Failed:", err.message);
     process.exit(1);
   });
-
-// Handle connection events
-mongoose.connection.on('disconnected', () => {
-  console.log('⚠️ MongoDB Disconnected. Reconnecting...');
-});
-
-mongoose.connection.on('error', (err) => {
-  console.log('❌ MongoDB Error:', err.message);
-});
 
 // ===================== SCHEMAS =====================
 const MatchSchema = new mongoose.Schema({
@@ -68,7 +50,7 @@ const MatchSchema = new mongoose.Schema({
   home_logo: String,
   away_logo: String,
   match_date: Date,
-  match_time_pkt: String,  // Pakistan time formatted
+  match_time_pkt: String,
   status: String,
   home_score: Number,
   away_score: Number,
@@ -84,26 +66,33 @@ const PredictionSchema = new mongoose.Schema({
   away_team: String,
   match_date: Date,
   match_time_pkt: String,
+  
+  // Enhanced predictions
   winner_prob: {
     home: Number,
     draw: Number,
     away: Number
   },
+  correct_scores: Array,  // NEW: Top 2 most likely scores
   btts_prob: Number,
   over_under: Object,
   last10_prob: Number,
+  top_goal_minutes: Array,  // NEW: Most likely goal time periods
   xG: {
     home: Number,
     away: Number,
     total: Number
   },
+  h2h_stats: Object,  // NEW: Head-to-head analysis
+  suggested_odds: Object,  // NEW: Fair odds ranges
   strong_markets: Array,
+  risk_notes: Array,  // NEW: Risk warnings
   confidence_score: Number,
+  
   created_at: { type: Date, default: Date.now },
   updated_at: { type: Date, default: Date.now }
 });
 
-// Create indexes for better performance
 MatchSchema.index({ match_date: -1 });
 MatchSchema.index({ status: 1 });
 PredictionSchema.index({ updated_at: -1 });
@@ -115,8 +104,6 @@ const Prediction = mongoose.model("Prediction", PredictionSchema);
 // ===================== API CONFIGURATION =====================
 const API_FOOTBALL_KEY = process.env.API_FOOTBALL_KEY || "fdab0eef5743173c30f9810bef3a6742";
 const FOOTBALL_DATA_KEY = process.env.FOOTBALL_DATA_KEY || "62207494b8a241db93aee4c14b7c1266";
-
-// Top Leagues + World Cup Qualifiers
 const TARGET_LEAGUES = [39, 140, 135, 78, 61, 94, 88, 203, 2, 3, 32, 34, 33];
 
 // ===================== HELPER: Pakistan Time =====================
@@ -137,92 +124,33 @@ async function fetchLiveMatches() {
   try {
     const todayPKT = moment().tz("Asia/Karachi").format("YYYY-MM-DD");
     console.log("📅 Pakistan Date:", todayPKT);
-    console.log("🕐 Pakistan Time:", moment().tz("Asia/Karachi").format("hh:mm A"));
 
     let matches = [];
 
-    // ========== METHOD 1: API-FOOTBALL ==========
+    // Fetch from API-Football
     try {
-      console.log("🌐 Fetching from API-Football...");
-      const url = `https://v3.football.api-sports.io/fixtures`;
-      const params = { date: todayPKT };
-      const headers = { "x-apisports-key": API_FOOTBALL_KEY };
+      const response = await axios.get(`https://v3.football.api-sports.io/fixtures`, {
+        headers: { "x-apisports-key": API_FOOTBALL_KEY },
+        params: { date: todayPKT },
+        timeout: 15000
+      });
 
-      const response = await axios.get(url, { headers, params, timeout: 15000 });
-
-      if (response.data?.response && response.data.response.length > 0) {
+      if (response.data?.response?.length > 0) {
         matches = response.data.response;
         console.log(`✅ API-Football: ${matches.length} matches found`);
-      } else {
-        console.log("⚠️ No matches returned from API-Football");
       }
-
     } catch (apiError) {
       console.log("❌ API-Football Error:", apiError.message);
     }
 
-    // ========== METHOD 2: FOOTBALL-DATA (Fallback) ==========
+    // Fallback: Fetch all live matches
     if (matches.length === 0) {
       try {
-        console.log("🌐 Trying Football-Data.org...");
-        const fbUrl = `https://api.football-data.org/v4/matches`;
-        const fbHeaders = { "X-Auth-Token": FOOTBALL_DATA_KEY };
-
-        const fbResponse = await axios.get(fbUrl, { 
-          headers: fbHeaders,
-          params: { date: todayPKT },
-          timeout: 15000 
+        const liveResponse = await axios.get(`https://v3.football.api-sports.io/fixtures`, {
+          headers: { "x-apisports-key": API_FOOTBALL_KEY },
+          params: { live: "all" },
+          timeout: 15000
         });
-
-        if (fbResponse.data?.matches) {
-          matches = fbResponse.data.matches.map(m => ({
-            fixture: {
-              id: m.id,
-              date: m.utcDate,
-              venue: { name: m.venue || "Unknown" },
-              status: { 
-                short: m.status === "FINISHED" ? "FT" : 
-                       m.status === "IN_PLAY" ? "LIVE" :
-                       m.status === "PAUSED" ? "HT" : "NS"
-              }
-            },
-            league: { 
-              id: m.competition?.id || 0, 
-              name: m.competition?.name || "Unknown"
-            },
-            teams: {
-              home: { 
-                id: m.homeTeam?.id || 0, 
-                name: m.homeTeam?.name || "Unknown",
-                logo: m.homeTeam?.crest || ""
-              },
-              away: { 
-                id: m.awayTeam?.id || 0, 
-                name: m.awayTeam?.name || "Unknown",
-                logo: m.awayTeam?.crest || ""
-              }
-            },
-            goals: { 
-              home: m.score?.fullTime?.home ?? null, 
-              away: m.score?.fullTime?.away ?? null 
-            }
-          }));
-          console.log(`✅ Football-Data: ${matches.length} matches converted`);
-        }
-      } catch (fbError) {
-        console.log("❌ Football-Data Error:", fbError.message);
-      }
-    }
-
-    // ========== METHOD 3: ALL LIVE MATCHES ==========
-    if (matches.length === 0) {
-      try {
-        console.log("🌐 Fetching ALL live matches...");
-        const liveUrl = `https://v3.football.api-sports.io/fixtures`;
-        const liveParams = { live: "all" };
-        const headers = { "x-apisports-key": API_FOOTBALL_KEY };
-
-        const liveResponse = await axios.get(liveUrl, { headers, params: liveParams, timeout: 15000 });
 
         if (liveResponse.data?.response) {
           matches = liveResponse.data.response;
@@ -234,29 +162,18 @@ async function fetchLiveMatches() {
     }
 
     if (matches.length === 0) {
-      console.log("❌ No matches found from any source!");
+      console.log("❌ No matches found!");
       return;
     }
 
-    console.log(`📊 Processing ${matches.length} total matches...`);
+    console.log(`📊 Processing ${matches.length} matches...`);
 
-    // Filter for target leagues (optional)
-    const filteredMatches = matches.filter(m => 
-      !TARGET_LEAGUES.length || TARGET_LEAGUES.includes(m.league?.id)
-    );
-
-    const matchesToSave = filteredMatches.length > 0 ? filteredMatches : matches.slice(0, 50);
-    console.log(`🎯 Saving ${matchesToSave.length} matches...`);
-
-    // Save to MongoDB with Pakistan time
+    const matchesToSave = matches.slice(0, 100);
     let savedCount = 0;
+
     for (const match of matchesToSave) {
       try {
-        // Validate essential fields
-        if (!match.teams?.home?.name || !match.teams?.away?.name) {
-          console.log("⚠️ Skipping match with missing team names");
-          continue;
-        }
+        if (!match.teams?.home?.name || !match.teams?.away?.name) continue;
 
         const pktTime = formatPakistanTime(match.fixture?.date);
         
@@ -277,17 +194,6 @@ async function fetchLiveMatches() {
           updated_at: new Date()
         };
 
-        // Log sample data for debugging
-        if (savedCount === 0) {
-          console.log("📝 Sample match data:", {
-            id: matchData.match_id,
-            league: matchData.league_name,
-            match: `${matchData.home_team} vs ${matchData.away_team}`,
-            time: matchData.match_time_pkt,
-            status: matchData.status
-          });
-        }
-
         await Match.findOneAndUpdate(
           { match_id: matchData.match_id },
           matchData,
@@ -299,7 +205,7 @@ async function fetchLiveMatches() {
       }
     }
 
-    console.log(`✅ Successfully saved ${savedCount} matches to MongoDB`);
+    console.log(`✅ Successfully saved ${savedCount} matches`);
     console.log("============ FETCH COMPLETE ============\n");
 
   } catch (error) {
@@ -307,13 +213,13 @@ async function fetchLiveMatches() {
   }
 }
 
-// ===================== PREDICTION ENGINE =====================
+// ===================== ENHANCED PREDICTION ENGINE =====================
 async function generatePrediction(match) {
   try {
     const homeTeam = match.home_team;
     const awayTeam = match.away_team;
 
-    // Get recent form (last 10 matches)
+    // Get last 10 matches for each team
     const homeMatches = await Match.find({
       $or: [{ home_team: homeTeam }, { away_team: homeTeam }],
       status: "FT"
@@ -324,54 +230,104 @@ async function generatePrediction(match) {
       status: "FT"
     }).sort({ match_date: -1 }).limit(10);
 
-    // Calculate statistics
+    // NEW: Get H2H (Head-to-Head) matches
+    const h2hMatches = await Match.find({
+      $or: [
+        { home_team: homeTeam, away_team: awayTeam, status: "FT" },
+        { home_team: awayTeam, away_team: homeTeam, status: "FT" }
+      ]
+    }).sort({ match_date: -1 }).limit(5);
+
+    // Calculate basic statistics
     let homeGoalsFor = 0, homeGoalsAgainst = 0, homeWins = 0, homeDraws = 0;
     let awayGoalsFor = 0, awayGoalsAgainst = 0, awayWins = 0, awayDraws = 0;
+    let homeCleanSheets = 0, awayCleanSheets = 0;
 
     homeMatches.forEach(m => {
-      if (m.home_team === homeTeam) {
-        homeGoalsFor += m.home_score || 0;
-        homeGoalsAgainst += m.away_score || 0;
-        if ((m.home_score || 0) > (m.away_score || 0)) homeWins++;
-        if ((m.home_score || 0) === (m.away_score || 0)) homeDraws++;
-      } else {
-        homeGoalsFor += m.away_score || 0;
-        homeGoalsAgainst += m.home_score || 0;
-        if ((m.away_score || 0) > (m.home_score || 0)) homeWins++;
-        if ((m.home_score || 0) === (m.away_score || 0)) homeDraws++;
-      }
+      const isHome = m.home_team === homeTeam;
+      const scored = isHome ? (m.home_score || 0) : (m.away_score || 0);
+      const conceded = isHome ? (m.away_score || 0) : (m.home_score || 0);
+      
+      homeGoalsFor += scored;
+      homeGoalsAgainst += conceded;
+      if (scored > conceded) homeWins++;
+      if (scored === conceded) homeDraws++;
+      if (conceded === 0) homeCleanSheets++;
     });
 
     awayMatches.forEach(m => {
-      if (m.home_team === awayTeam) {
-        awayGoalsFor += m.home_score || 0;
-        awayGoalsAgainst += m.away_score || 0;
-        if ((m.home_score || 0) > (m.away_score || 0)) awayWins++;
-        if ((m.home_score || 0) === (m.away_score || 0)) awayDraws++;
-      } else {
-        awayGoalsFor += m.away_score || 0;
-        awayGoalsAgainst += m.home_score || 0;
-        if ((m.away_score || 0) > (m.home_score || 0)) awayWins++;
-        if ((m.home_score || 0) === (m.away_score || 0)) awayDraws++;
-      }
+      const isHome = m.home_team === awayTeam;
+      const scored = isHome ? (m.home_score || 0) : (m.away_score || 0);
+      const conceded = isHome ? (m.away_score || 0) : (m.home_score || 0);
+      
+      awayGoalsFor += scored;
+      awayGoalsAgainst += conceded;
+      if (scored > conceded) awayWins++;
+      if (scored === conceded) awayDraws++;
+      if (conceded === 0) awayCleanSheets++;
     });
 
-    // Advanced xG calculation
+    // NEW: H2H Analysis
+    let h2h_home_wins = 0, h2h_draws = 0, h2h_away_wins = 0;
+    let h2h_total_goals = 0;
+    
+    h2hMatches.forEach(m => {
+      const homeIsHome = m.home_team === homeTeam;
+      const homeScore = homeIsHome ? (m.home_score || 0) : (m.away_score || 0);
+      const awayScore = homeIsHome ? (m.away_score || 0) : (m.home_score || 0);
+      
+      h2h_total_goals += homeScore + awayScore;
+      if (homeScore > awayScore) h2h_home_wins++;
+      else if (homeScore === awayScore) h2h_draws++;
+      else h2h_away_wins++;
+    });
+
+    const h2h_stats = {
+      total_meetings: h2hMatches.length,
+      home_wins: h2h_home_wins,
+      draws: h2h_draws,
+      away_wins: h2h_away_wins,
+      avg_goals: h2hMatches.length > 0 ? (h2h_total_goals / h2hMatches.length).toFixed(2) : 0
+    };
+
+    // Enhanced xG calculation (using H2H data)
     const homeAvgFor = homeMatches.length > 0 ? homeGoalsFor / homeMatches.length : 1.2;
     const homeAvgAgainst = homeMatches.length > 0 ? homeGoalsAgainst / homeMatches.length : 1.2;
     const awayAvgFor = awayMatches.length > 0 ? awayGoalsFor / awayMatches.length : 1.0;
     const awayAvgAgainst = awayMatches.length > 0 ? awayGoalsAgainst / awayMatches.length : 1.0;
 
-    const xG_home = Number((homeAvgFor * 1.3 + awayAvgAgainst * 0.7 + 0.2).toFixed(2));
-    const xG_away = Number((awayAvgFor * 0.9 + homeAvgAgainst * 0.6).toFixed(2));
+    // Add H2H weight to xG
+    const h2h_weight = h2hMatches.length > 0 ? 0.3 : 0;
+    const h2h_avg_goals = parseFloat(h2h_stats.avg_goals);
+    
+    const xG_home = Number((
+      homeAvgFor * 1.3 + 
+      awayAvgAgainst * 0.7 + 
+      (h2h_avg_goals * h2h_weight) +
+      0.2
+    ).toFixed(2));
+    
+    const xG_away = Number((
+      awayAvgFor * 0.9 + 
+      homeAvgAgainst * 0.6 + 
+      (h2h_avg_goals * h2h_weight * 0.8)
+    ).toFixed(2));
+    
     const xG_total = Number((xG_home + xG_away).toFixed(2));
 
-    // Winner probabilities
+    // Winner probabilities (with H2H boost)
     const homeFormScore = (homeWins * 3 + homeDraws * 1) / Math.max(homeMatches.length, 1);
     const awayFormScore = (awayWins * 3 + awayDraws * 1) / Math.max(awayMatches.length, 1);
     
-    const homeStrength = xG_home * 2 + homeFormScore * 1.5;
-    const awayStrength = xG_away * 2 + awayFormScore * 1.2;
+    let homeStrength = xG_home * 2 + homeFormScore * 1.5;
+    let awayStrength = xG_away * 2 + awayFormScore * 1.2;
+    
+    // H2H boost
+    if (h2hMatches.length >= 3) {
+      homeStrength += h2h_home_wins * 0.5;
+      awayStrength += h2h_away_wins * 0.5;
+    }
+    
     const totalStrength = homeStrength + awayStrength;
 
     let homeProb = Math.round((homeStrength / totalStrength) * 100);
@@ -383,28 +339,75 @@ async function generatePrediction(match) {
     drawProb = Math.round((drawProb / sum) * 100);
     awayProb = 100 - homeProb - drawProb;
 
-    // BTTS probability
-    const bttsHistory = [...homeMatches, ...awayMatches].filter(m => 
-      (m.home_score || 0) > 0 && (m.away_score || 0) > 0
-    ).length;
+    // NEW: CORRECT SCORE PREDICTIONS (Top 2 most likely)
+    const possibleScores = [];
+    for (let h = 0; h <= 4; h++) {
+      for (let a = 0; a <= 4; a++) {
+        const homeGoalProb = Math.exp(-xG_home) * Math.pow(xG_home, h) / factorial(h);
+        const awayGoalProb = Math.exp(-xG_away) * Math.pow(xG_away, a) / factorial(a);
+        const scoreProb = homeGoalProb * awayGoalProb;
+        possibleScores.push({ 
+          score: `${h}-${a}`, 
+          probability: Math.round(scoreProb * 100 * 10) / 10 
+        });
+      }
+    }
+    
+    possibleScores.sort((a, b) => b.probability - a.probability);
+    const correct_scores = possibleScores.slice(0, 2);
+
+    // BTTS probability (deterministic)
+    const btts_home_rate = homeMatches.length > 0 ? 
+      homeMatches.filter(m => {
+        const conceded = m.home_team === homeTeam ? m.away_score : m.home_score;
+        return (conceded || 0) > 0;
+      }).length / homeMatches.length : 0.5;
+    
+    const btts_away_rate = awayMatches.length > 0 ? 
+      awayMatches.filter(m => {
+        const scored = m.home_team === awayTeam ? m.home_score : m.away_score;
+        return (scored || 0) > 0;
+      }).length / awayMatches.length : 0.5;
+
     const bttsProb = Math.min(95, Math.round(
-      (bttsHistory / Math.max(homeMatches.length + awayMatches.length, 1)) * 100 + 
-      (xG_total > 2.5 ? 15 : 0)
+      (btts_home_rate * btts_away_rate) * 100 + (xG_total > 2.5 ? 15 : 0)
     ));
 
-    // Over/Under markets
+    // Over/Under markets (FIXED: No randomness)
     const overUnder = {};
     [0.5, 1.5, 2.5, 3.5, 4.5, 5.5].forEach(line => {
-      const overProb = Math.min(98, Math.max(5, Math.round(
-        (xG_total / (line + 0.5)) * 55 + (Math.random() * 15)
-      )));
-      overUnder[line.toFixed(1)] = overProb;
+      const lambda = xG_total;
+      let overProb = 0;
+      
+      // Poisson distribution for goals
+      for (let k = Math.floor(line) + 1; k <= 10; k++) {
+        overProb += (Math.exp(-lambda) * Math.pow(lambda, k)) / factorial(k);
+      }
+      
+      overUnder[line.toFixed(1)] = Math.min(98, Math.max(5, Math.round(overProb * 100)));
     });
 
+    // NEW: TOP GOAL MINUTES (Most likely scoring periods)
+    const top_goal_minutes = [
+      { period: "0-15 min", probability: Math.round(xG_total * 8 + 12) },
+      { period: "16-30 min", probability: Math.round(xG_total * 9 + 10) },
+      { period: "31-45 min", probability: Math.round(xG_total * 10 + 15) },
+      { period: "46-60 min", probability: Math.round(xG_total * 9 + 8) },
+      { period: "61-75 min", probability: Math.round(xG_total * 10 + 12) },
+      { period: "76-90 min", probability: Math.round(xG_total * 12 + 20) }
+    ].sort((a, b) => b.probability - a.probability);
+
     // Last 10 minutes probability
-    const last10Prob = Math.min(92, Math.max(8, Math.round(
-      xG_total * 11 + (homeAvgFor + awayAvgFor) * 5
-    )));
+    const last10Prob = Math.min(92, Math.max(8, top_goal_minutes[0].probability));
+
+    // NEW: SUGGESTED ODDS (Fair betting odds)
+    const suggested_odds = {
+      home_win: homeProb > 0 ? (100 / homeProb).toFixed(2) : "N/A",
+      draw: drawProb > 0 ? (100 / drawProb).toFixed(2) : "N/A",
+      away_win: awayProb > 0 ? (100 / awayProb).toFixed(2) : "N/A",
+      btts_yes: bttsProb > 0 ? (100 / bttsProb).toFixed(2) : "N/A",
+      over_2_5: overUnder['2.5'] > 0 ? (100 / overUnder['2.5']).toFixed(2) : "N/A"
+    };
 
     // Strong markets (≥85% confidence)
     const strongMarkets = [];
@@ -418,10 +421,27 @@ async function generatePrediction(match) {
       if ((100 - prob) >= 85) strongMarkets.push({ market: `Under ${line}`, prob: 100 - prob });
     });
 
-    // Confidence score based on data availability
-    const confidenceScore = Math.min(100, Math.round(
+    // NEW: RISK NOTES (Warnings for bettors)
+    const risk_notes = [];
+    if (homeMatches.length < 5 || awayMatches.length < 5) {
+      risk_notes.push("⚠️ Limited historical data - lower confidence");
+    }
+    if (h2hMatches.length === 0) {
+      risk_notes.push("⚠️ No head-to-head history available");
+    }
+    if (xG_total < 1.5) {
+      risk_notes.push("⚠️ Low-scoring match expected - unpredictable");
+    }
+    if (Math.abs(homeProb - awayProb) < 10) {
+      risk_notes.push("⚠️ Very close match - high risk");
+    }
+
+    // Confidence score (90%+ requires good data)
+    let confidenceScore = Math.min(100, Math.round(
       (homeMatches.length + awayMatches.length) / 20 * 100
     ));
+    
+    if (h2hMatches.length >= 3) confidenceScore = Math.min(100, confidenceScore + 10);
 
     return {
       match_id: match.match_id,
@@ -431,11 +451,16 @@ async function generatePrediction(match) {
       match_date: match.match_date,
       match_time_pkt: match.match_time_pkt,
       winner_prob: { home: homeProb, draw: drawProb, away: awayProb },
+      correct_scores,
       btts_prob: bttsProb,
       over_under: overUnder,
       last10_prob: last10Prob,
+      top_goal_minutes: top_goal_minutes.slice(0, 3),
       xG: { home: xG_home, away: xG_away, total: xG_total },
+      h2h_stats,
+      suggested_odds,
       strong_markets: strongMarkets,
+      risk_notes,
       confidence_score: confidenceScore,
       updated_at: new Date()
     };
@@ -444,6 +469,12 @@ async function generatePrediction(match) {
     console.log(`❌ Prediction Error for ${match.home_team}: ${error.message}`);
     return null;
   }
+}
+
+// Helper: Factorial function
+function factorial(n) {
+  if (n <= 1) return 1;
+  return n * factorial(n - 1);
 }
 
 // ===================== UPDATE PREDICTIONS =====================
@@ -482,7 +513,7 @@ async function updatePredictions() {
       await Prediction.deleteMany({ 
         _id: { $in: oldPredictions.map(p => p._id) } 
       });
-      console.log(`🗑️ Deleted ${toDelete} old predictions (keeping last 100)`);
+      console.log(`🗑️ Deleted ${toDelete} old predictions`);
     }
 
     console.log(`✅ ${updated} predictions updated`);
@@ -494,48 +525,26 @@ async function updatePredictions() {
 }
 
 // ===================== CRON JOBS =====================
-cron.schedule("*/15 * * * *", () => {
-  console.log("⏰ CRON: 15-min interval - Fetching matches");
-  fetchLiveMatches();
-});
+cron.schedule("*/15 * * * *", fetchLiveMatches);
+cron.schedule("*/5 * * * *", updatePredictions);
 
-cron.schedule("*/5 * * * *", () => {
-  console.log("⏰ CRON: 5-min interval - Updating predictions");
-  updatePredictions();
-});
-
-// Initial fetch on startup
 setTimeout(() => {
-  console.log("🚀 Starting initial data fetch...");
   fetchLiveMatches();
-  setTimeout(() => updatePredictions(), 20000);
+  setTimeout(updatePredictions, 20000);
 }, 5000);
 
-// ===================== SSE ENDPOINT =====================
+// ===================== API ROUTES =====================
 app.get("/events", async (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
 
-  console.log("👤 SSE Client Connected");
-
   const sendData = async () => {
     try {
-      const predictions = await Prediction.find()
-        .sort({ updated_at: -1 })
-        .limit(100);
-      
-      const matches = await Match.find()
-        .sort({ match_date: 1 })
-        .limit(100);
-
-      res.write(`data: ${JSON.stringify({ 
-        predictions, 
-        matches,
-        timestamp: moment().tz("Asia/Karachi").format("DD MMM YYYY, hh:mm:ss A"),
-        count: { matches: matches.length, predictions: predictions.length }
-      })}\n\n`);
+      const predictions = await Prediction.find().sort({ updated_at: -1 }).limit(100);
+      const matches = await Match.find().sort({ match_date: 1 }).limit(100);
+      res.write(`data: ${JSON.stringify({ predictions, matches })}\n\n`);
     } catch (error) {
       res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
     }
@@ -543,19 +552,12 @@ app.get("/events", async (req, res) => {
 
   await sendData();
   const interval = setInterval(sendData, 5 * 60 * 1000);
-
-  req.on("close", () => {
-    clearInterval(interval);
-    console.log("❌ SSE Client Disconnected");
-  });
+  req.on("close", () => clearInterval(interval));
 });
 
-// ===================== API ROUTES =====================
 app.get("/api/predictions", async (req, res) => {
   try {
-    const predictions = await Prediction.find()
-      .sort({ updated_at: -1 })
-      .limit(100);
+    const predictions = await Prediction.find().sort({ updated_at: -1 }).limit(100);
     res.json({ success: true, count: predictions.length, data: predictions });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -564,94 +566,37 @@ app.get("/api/predictions", async (req, res) => {
 
 app.get("/api/matches", async (req, res) => {
   try {
-    const matches = await Match.find()
-      .sort({ match_date: 1 })
-      .limit(100);
+    const matches = await Match.find().sort({ match_date: 1 }).limit(100);
     res.json({ success: true, count: matches.length, data: matches });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-app.get("/api/today", async (req, res) => {
-  try {
-    const todayStart = moment().tz("Asia/Karachi").startOf("day");
-    const todayEnd = moment().tz("Asia/Karachi").endOf("day");
-    
-    const matches = await Match.find({
-      match_date: { 
-        $gte: todayStart.toDate(), 
-        $lte: todayEnd.toDate() 
-      }
-    }).sort({ match_date: 1 });
-
-    const matchIds = matches.map(m => m.match_id);
-    const predictions = await Prediction.find({ 
-      match_id: { $in: matchIds } 
-    });
-
-    res.json({ 
-      success: true, 
-      date: todayStart.format("DD MMMM YYYY"),
-      timezone: "Pakistan (PKT)",
-      matches, 
-      predictions 
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Manual trigger endpoint (for testing)
 app.get("/api/fetch-now", async (req, res) => {
   try {
     await fetchLiveMatches();
-    res.json({ 
-      success: true, 
-      message: "Fetch triggered",
-      time: moment().tz("Asia/Karachi").format("DD MMM YYYY, hh:mm A")
-    });
+    res.json({ success: true, message: "Fetch triggered" });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// Clear corrupted data endpoint
-app.get("/api/clear-db", async (req, res) => {
-  try {
-    await Match.deleteMany({});
-    await Prediction.deleteMany({});
-    console.log("🗑️ Database cleared");
-    res.json({ 
-      success: true, 
-      message: "Database cleared. Now visit /api/fetch-now to get fresh data"
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// ===================== SERVE FRONTEND =====================
 app.use(express.static(__dirname));
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
-});
+app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
 
-// ===================== START SERVER =====================
 app.listen(PORT, () => {
   console.log(`
 ╔════════════════════════════════════════════╗
-║   ⚽ FOOTBALL PREDICTION SYSTEM LIVE ⚽    ║
+║   ⚽ ENHANCED PREDICTION SYSTEM LIVE ⚽     ║
 ║                                            ║
 ║   🚀 Server: http://localhost:${PORT}     ║
-║   🕐 Timezone: Pakistan (PKT)              ║
-║   📊 Matches: Last 100 (Left Side)         ║
-║   🎯 Predictions: Last 100 (Right Side)    ║
-║                                            ║
-║   ✅ 15-min match fetch (96/day)           ║
-║   ✅ 5-min predictions update              ║
-║   ✅ Auto-delete old predictions           ║
-║   ✅ MongoDB properly connected            ║
+║   🎯 NEW: Correct Scores                   ║
+║   🎯 NEW: Top Goal Minutes                 ║
+║   🎯 NEW: H2H Analysis                     ║
+║   🎯 NEW: Odds Suggestions                 ║
+║   🎯 NEW: Risk Warnings                    ║
+║   ✅ Deterministic Calculations            ║
 ╚════════════════════════════════════════════╝
   `);
 });
