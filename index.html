@@ -532,6 +532,13 @@
     </div>
 
     <script>
+        // FIXED: Auto-detect API URL (works on both localhost and Railway)
+        const API_BASE_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:8080' 
+            : window.location.origin;
+
+        console.log('🔗 API URL:', API_BASE_URL);
+
         let currentPredictionCount = 0;
         let newPredictionIds = new Set();
 
@@ -600,7 +607,15 @@
             const container = document.getElementById('matchesContainer');
             
             if (!matches || matches.length === 0) {
-                container.innerHTML = '<div class="empty-state">📭 No matches scheduled for today</div>';
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h3>📭 No matches scheduled for today</h3>
+                        <p style="margin-top: 15px; color: #666;">
+                            Matches are fetched every 15 minutes.<br>
+                            Check back later or view existing predictions in the Predictions tab.
+                        </p>
+                    </div>
+                `;
                 document.getElementById('matchBadge').textContent = '0';
                 document.getElementById('matchCount').textContent = '0';
                 return;
@@ -640,7 +655,15 @@
             const container = document.getElementById('predictionsContainer');
             
             if (!predictions || predictions.length === 0) {
-                container.innerHTML = '<div class="empty-state">🤖 Predictions loading...</div>';
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h3>🤖 No predictions available yet</h3>
+                        <p style="margin-top: 15px; color: #666;">
+                            Predictions are generated when matches are scheduled.<br>
+                            Check the Matches tab or wait for the next update cycle.
+                        </p>
+                    </div>
+                `;
                 document.getElementById('predBadge').textContent = '0';
                 document.getElementById('predCount').textContent = '0';
                 return;
@@ -651,7 +674,7 @@
                 const newCount = predictions.length - currentPredictionCount;
                 // Mark new predictions
                 for (let i = 0; i < newCount; i++) {
-                    newPredictionIds.add(predictions[i]._id || predictions[i].id || i);
+                    newPredictionIds.add(predictions[i]._id || predictions[i].match_id || i);
                 }
                 // Show NEW badge
                 document.getElementById('newBadge').classList.remove('hidden');
@@ -659,7 +682,7 @@
             currentPredictionCount = predictions.length;
 
             container.innerHTML = predictions.map((pred, index) => {
-                const predId = pred._id || pred.id || index;
+                const predId = pred._id || pred.match_id || index;
                 const isNew = newPredictionIds.has(predId);
                 
                 return `
@@ -752,32 +775,57 @@
         // Fetch data from backend
         async function fetchData() {
             try {
+                console.log('🔄 Fetching data from:', API_BASE_URL);
+                
                 const [matchesRes, predictionsRes] = await Promise.all([
-                    fetch('http://localhost:8080/api/matches'),
-                    fetch('http://localhost:8080/api/predictions')
+                    fetch(`${API_BASE_URL}/api/matches`),
+                    fetch(`${API_BASE_URL}/api/predictions`)
                 ]);
 
                 const matchesData = await matchesRes.json();
                 const predictionsData = await predictionsRes.json();
 
+                console.log('📊 Matches:', matchesData.count || 0);
+                console.log('🎯 Predictions:', predictionsData.count || 0);
+
                 if (matchesData.success) {
                     renderMatches(matchesData.data);
+                } else {
+                    console.error('❌ Matches fetch failed:', matchesData.error);
                 }
                 
                 if (predictionsData.success) {
                     renderPredictions(predictionsData.data);
+                } else {
+                    console.error('❌ Predictions fetch failed:', predictionsData.error);
                 }
             } catch (error) {
                 console.error('❌ Fetch error:', error);
                 document.getElementById('matchesContainer').innerHTML = 
-                    '<div class="empty-state">❌ Error connecting to server. Make sure backend is running on http://localhost:8080</div>';
+                    `<div class="empty-state">
+                        <h3>❌ Connection Error</h3>
+                        <p style="margin-top: 15px; color: #666;">
+                            Unable to connect to the server.<br>
+                            Error: ${error.message}<br>
+                            <small>API URL: ${API_BASE_URL}</small>
+                        </p>
+                    </div>`;
                 document.getElementById('predictionsContainer').innerHTML = 
-                    '<div class="empty-state">❌ Error connecting to server. Make sure backend is running on http://localhost:8080</div>';
+                    `<div class="empty-state">
+                        <h3>❌ Connection Error</h3>
+                        <p style="margin-top: 15px; color: #666;">
+                            Unable to connect to the server.<br>
+                            Please check if the backend is running.
+                        </p>
+                    </div>`;
             }
         }
 
         // Initialize
         window.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 Football Predictions System Starting...');
+            console.log('📍 Environment:', window.location.hostname === 'localhost' ? 'Development' : 'Production');
+            
             updatePakistanTime();
             setInterval(updatePakistanTime, 1000);
             
