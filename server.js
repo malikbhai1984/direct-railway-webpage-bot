@@ -46,12 +46,30 @@ app.use(express.static(__dirname));
 // MongoDB
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/football-predictions';
 
+let isMongoConnected = false;
+
 mongoose.connect(MONGODB_URI)
 .then(() => {
   console.log('✅ MongoDB Connected Successfully!');
   console.log('📦 Database:', mongoose.connection.db.databaseName);
+  isMongoConnected = true;
 })
-.catch(err => console.error('❌ MongoDB Connection Error:', err));
+.catch(err => {
+  console.error('❌ MongoDB Connection Error:', err);
+  isMongoConnected = false;
+});
+
+// Wait for MongoDB connection
+async function waitForMongo() {
+  let attempts = 0;
+  while (!isMongoConnected && attempts < 30) {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    attempts++;
+  }
+  if (!isMongoConnected) {
+    throw new Error('MongoDB connection timeout');
+  }
+}
 
 // ==================== SCHEMAS ====================
 
@@ -302,6 +320,14 @@ async function fetchMatches() {
   console.log('📅 Pakistan Date:', pakistanDate);
   console.log('🕐 Pakistan Time:', pakistanTime);
   
+  // Wait for MongoDB to be ready
+  try {
+    await waitForMongo();
+  } catch (error) {
+    console.error('❌ MongoDB not connected:', error.message);
+    return [];
+  }
+  
   // Try API-Football first
   let matches = await fetchFromApiFootball();
   
@@ -324,16 +350,22 @@ async function fetchMatches() {
     console.log(`⚽ World Cup Qualifiers: ${wcqMatches.length} matches`);
   }
   
-  // Save to database
+  // Save to database with error handling
+  let savedCount = 0;
   for (const match of matches) {
-    await Match.findOneAndUpdate(
-      { match_id: match.match_id },
-      match,
-      { upsert: true, new: true }
-    );
+    try {
+      await Match.findOneAndUpdate(
+        { match_id: match.match_id },
+        match,
+        { upsert: true, new: true }
+      );
+      savedCount++;
+    } catch (error) {
+      console.error(`❌ Error saving match ${match.match_id}:`, error.message);
+    }
   }
   
-  console.log(`✅ Successfully saved ${matches.length} matches to MongoDB`);
+  console.log(`✅ Successfully saved ${savedCount}/${matches.length} matches to MongoDB`);
   console.log('============ FETCH COMPLETE ============\n');
   
   return matches;
@@ -550,46 +582,77 @@ app.get('/', (req, res) => {
 // ==================== AUTO TASKS ====================
 
 setTimeout(async () => {
-  console.log('🚀 Starting initial data fetch...');
-  await fetchMatches();
-  
-  const matches = await Match.find().limit(100);
-  for (const match of matches) {
-    const predictionData = calculatePredictions(match);
-    predictionData.is_new = true;
-    await Prediction.findOneAndUpdate(
-      { match_id: match.match_id },
-      { ...predictionData, updated_at: new Date() },
-      { upsert: true, new: true }
-    );
+  try {
+    console.log('🚀 Starting initial data fetch...');
+    await waitForMongo();
+    
+    const matches = await fetchMatches();
+    
+    if (matches && matches.length > 0) {
+      console.log('🔄 Creating initial predictions...');
+      for (const match of matches) {
+        try {
+          const predictionData = calculatePredictions(match);
+          predictionData.is_new = true;
+          await Prediction.findOneAndUpdate(
+            { match_id: match.match_id },
+            { ...predictionData, updated_at: new Date() },
+            { upsert: true, new: true }
+          );
+        } catch (error) {
+          console.error(`❌ Error creating prediction:`, error.message);
+        }
+      }
+      console.log(`✅ Initial predictions created for ${matches.length} matches`);
+    } else {
+      console.log('⚠️ No matches to create predictions for');
+    }
+  } catch (error) {
+    console.error('❌ Initial fetch error:', error.message);
   }
-  console.log(`✅ Initial predictions created for ${matches.length} matches`);
-}, 3000);
+}, 5000);
 
 // Auto-fetch matches every 15 minutes
 setInterval(async () => {
-  console.log('🔄 Auto-fetching matches...');
-  await fetchMatches();
+  try {
+    console.log('🔄 Auto-fetching matches...');
+    await fetchMatches();
+  } catch (error) {
+    console.error('❌ Auto-fetch error:', error.message);
+  }
 }, 15 * 60 * 1000);
 
 // Auto-update predictions every 5 minutes
 setInterval(async () => {
-  console.log('🔄 Auto-updating predictions...');
-  const matches = await Match.find().limit(100);
-  
-  for (const match of matches) {
-    const existingPred = await Prediction.findOne({ match_id: match.match_id });
-    const predictionData = calculatePredictions(match);
-    predictionData.is_new = !existingPred;
+  try {
+    if (!isMongoConnected) {
+      console.log('⚠️ MongoDB not connected, skipping auto-update');
+      return;
+    }
     
-    await Prediction.findOneAndUpdate(
-      { match_id: match.match_id },
-      { ...predictionData, updated_at: new Date() },
-      { upsert: true, new: true }
-    );
+    console.log('🔄 Auto-updating predictions...');
+    const matches = await Match.find().limit(100);
+    
+    for (const match of matches) {
+      try {
+        const existingPred = await Prediction.findOne({ match_id: match.match_id });
+        const predictionData = calculatePredictions(match);
+        predictionData.is_new = !existingPred;
+        
+        await Prediction.findOneAndUpdate(
+          { match_id: match.match_id },
+          { ...predictionData, updated_at: new Date() },
+          { upsert: true, new: true }
+        );
+      } catch (error) {
+        console.error(`❌ Error updating prediction:`, error.message);
+      }
+    }
+    
+    console.log(`✅ ${matches.length} predictions auto-updated`);
+  } catch (error) {
+    console.error('❌ Auto-update error:', error.message);
   }
-  
-  console.log(`✅ ${matches.length} predictions auto-updated`);
 }, 5 * 60 * 1000);
 
 // ==================== START SERVER ====================
