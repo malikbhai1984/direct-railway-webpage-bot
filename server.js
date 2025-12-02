@@ -14,8 +14,8 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 // API Keys
-const API_FOOTBALL_KEY = process.env.API_FOOTBALL_KEY || 'your-api-football-key';
-const FOOTBALL_DATA_KEY = process.env.FOOTBALL_DATA_KEY || 'your-football-data-key';
+const API_FOOTBALL_KEY = process.env.API_FOOTBALL_KEY || 'fdab0eef5743173c30f9810bef3a6742';
+const FOOTBALL_DATA_KEY = process.env.FOOTBALL_DATA_KEY || '62207494b8a241db93aee4c14b7c1266';
 
 // Top Leagues IDs (API-Football)
 const TOP_LEAGUES = {
@@ -43,19 +43,71 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// MongoDB
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/football-predictions';
+// ==================== MONGODB CONNECTION (FIXED) ====================
+const MONGO_URI = process.env.MONGO_URI || 
+                  process.env.MONGODB_URI || 
+                  process.env.MONGO_PUBLIC_URL ||
+                  process.env.MONGO_URL ||
+                  process.env.DATABASE_URL;
+
+if (!MONGO_URI) {
+  console.error('❌ CRITICAL ERROR: No MongoDB URI found!');
+  console.error('💡 Please set one of these environment variables:');
+  console.error('   - MONGO_URI');
+  console.error('   - MONGO_PUBLIC_URL (Railway MongoDB)');
+  console.error('   - MONGODB_URI');
+  console.error('\n📋 Example MongoDB Atlas URI:');
+  console.error('   mongodb+srv://username:password@cluster.mongodb.net/football');
+  console.error('\n📋 Railway MongoDB URI format:');
+  console.error('   mongodb://mongo:PORT/railway');
+  console.error('\n🔧 To fix this on Railway:');
+  console.error('   1. Add MongoDB from the service menu');
+  console.error('   2. Railway will auto-set MONGO_PUBLIC_URL');
+  console.error('   3. Or manually add your MongoDB Atlas URI');
+  process.exit(1);
+}
+
+console.log('✅ MongoDB URI detected');
+console.log('🔌 Connecting to:', MONGO_URI.substring(0, 20) + '...');
 
 let isMongoConnected = false;
 
-mongoose.connect(MONGODB_URI)
+mongoose.connect(MONGO_URI, {
+  serverSelectionTimeoutMS: 10000,
+  socketTimeoutMS: 45000,
+})
 .then(() => {
   console.log('✅ MongoDB Connected Successfully!');
   console.log('📦 Database:', mongoose.connection.db.databaseName);
   isMongoConnected = true;
 })
 .catch(err => {
-  console.error('❌ MongoDB Connection Error:', err);
+  console.error('❌ MongoDB Connection Failed!');
+  console.error('Error:', err.message);
+  console.error('\n💡 Troubleshooting:');
+  console.error('1. Check if MongoDB URI is correct in environment variables');
+  console.error('2. If using Railway MongoDB, ensure it\'s added to your project');
+  console.error('3. If using MongoDB Atlas:');
+  console.error('   - Whitelist all IPs (0.0.0.0/0) in Network Access');
+  console.error('   - Check username/password in connection string');
+  console.error('   - Ensure database user has read/write permissions');
+  isMongoConnected = false;
+  // Don't exit - let server run but warn about no DB
+});
+
+// Handle connection events
+mongoose.connection.on('disconnected', () => {
+  console.warn('⚠️ MongoDB Disconnected! Attempting to reconnect...');
+  isMongoConnected = false;
+});
+
+mongoose.connection.on('reconnected', () => {
+  console.log('✅ MongoDB Reconnected!');
+  isMongoConnected = true;
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('❌ MongoDB Error:', err.message);
   isMongoConnected = false;
 });
 
@@ -67,7 +119,7 @@ async function waitForMongo() {
     attempts++;
   }
   if (!isMongoConnected) {
-    throw new Error('MongoDB connection timeout');
+    throw new Error('MongoDB connection timeout after 30 seconds');
   }
 }
 
@@ -181,7 +233,7 @@ async function fetchFromApiFootball() {
     console.log(`📊 API Calls: ${apiFootballCalls}/${API_FOOTBALL_LIMIT}`);
     
     if (apiFootballCalls >= API_FOOTBALL_LIMIT) {
-      console.log('⚠️ API-Football limit reached');
+      console.log('⚠️ API-Football limit reached for today');
       return null;
     }
     
@@ -320,12 +372,15 @@ async function fetchMatches() {
   console.log('📅 Pakistan Date:', pakistanDate);
   console.log('🕐 Pakistan Time:', pakistanTime);
   
-  // Wait for MongoDB to be ready
-  try {
-    await waitForMongo();
-  } catch (error) {
-    console.error('❌ MongoDB not connected:', error.message);
-    return [];
+  // Check MongoDB connection
+  if (!isMongoConnected) {
+    console.warn('⚠️ MongoDB not connected - attempting to reconnect...');
+    try {
+      await waitForMongo();
+    } catch (error) {
+      console.error('❌ Cannot proceed without MongoDB:', error.message);
+      return [];
+    }
   }
   
   // Try API-Football first
@@ -338,7 +393,7 @@ async function fetchMatches() {
   }
   
   if (!matches || matches.length === 0) {
-    console.log('❌ No matches found!');
+    console.log('❌ No matches found from any API!');
     return [];
   }
   
@@ -476,8 +531,24 @@ function calculatePredictions(match) {
 
 // ==================== API ROUTES ====================
 
+app.get('/api/health', (req, res) => {
+  res.json({
+    success: true,
+    status: 'Server is running',
+    mongodb: isMongoConnected ? 'Connected' : 'Disconnected',
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.get('/api/matches', async (req, res) => {
   try {
+    if (!isMongoConnected) {
+      return res.status(503).json({ 
+        success: false, 
+        error: 'MongoDB not connected. Please check database configuration.' 
+      });
+    }
+    
     const matches = await Match.find()
       .sort({ match_date: -1 })
       .limit(100);
@@ -496,6 +567,13 @@ app.get('/api/matches', async (req, res) => {
 
 app.get('/api/predictions', async (req, res) => {
   try {
+    if (!isMongoConnected) {
+      return res.status(503).json({ 
+        success: false, 
+        error: 'MongoDB not connected. Please check database configuration.' 
+      });
+    }
+    
     const predictions = await Prediction.find()
       .sort({ created_at: -1 })
       .limit(100);
@@ -516,6 +594,10 @@ app.get('/api/predictions', async (req, res) => {
 
 app.post('/api/mark-predictions-seen', async (req, res) => {
   try {
+    if (!isMongoConnected) {
+      return res.status(503).json({ success: false, error: 'MongoDB not connected' });
+    }
+    
     await Prediction.updateMany(
       { is_new: true },
       { is_new: false }
@@ -544,6 +626,10 @@ app.post('/api/fetch-matches', async (req, res) => {
 
 app.post('/api/update-predictions', async (req, res) => {
   try {
+    if (!isMongoConnected) {
+      return res.status(503).json({ success: false, error: 'MongoDB not connected' });
+    }
+    
     console.log('🔄 ============ UPDATING PREDICTIONS ============');
     
     const matches = await Match.find().limit(100);
@@ -583,7 +669,7 @@ app.get('/', (req, res) => {
 
 setTimeout(async () => {
   try {
-    console.log('🚀 Starting initial data fetch...');
+    console.log('🚀 Starting initial data fetch in 5 seconds...');
     await waitForMongo();
     
     const matches = await fetchMatches();
@@ -609,11 +695,17 @@ setTimeout(async () => {
     }
   } catch (error) {
     console.error('❌ Initial fetch error:', error.message);
+    console.error('💡 The server will continue running, but database operations may fail.');
   }
 }, 5000);
 
 // Auto-fetch matches every 15 minutes
 setInterval(async () => {
+  if (!isMongoConnected) {
+    console.warn('⚠️ Skipping auto-fetch - MongoDB not connected');
+    return;
+  }
+  
   try {
     console.log('🔄 Auto-fetching matches...');
     await fetchMatches();
@@ -624,12 +716,12 @@ setInterval(async () => {
 
 // Auto-update predictions every 5 minutes
 setInterval(async () => {
+  if (!isMongoConnected) {
+    console.warn('⚠️ Skipping auto-update - MongoDB not connected');
+    return;
+  }
+  
   try {
-    if (!isMongoConnected) {
-      console.log('⚠️ MongoDB not connected, skipping auto-update');
-      return;
-    }
-    
     console.log('🔄 Auto-updating predictions...');
     const matches = await Match.find().limit(100);
     
@@ -666,14 +758,23 @@ app.listen(PORT, () => {
   console.log('║   🌐 API 1: API-Football (Primary)         ║');
   console.log('║   🌐 API 2: Football-Data (Fallback)       ║');
   console.log('║   🇵🇰 Pakistan Timezone (PKT)              ║');
-  console.log('║   ✅ NO node-fetch Required                ║');
-  console.log('║   ✅ NO Duplicate Schema Index             ║');
+  console.log('║   ✅ Fixed MongoDB Connection Handling     ║');
+  console.log('║   ✅ Better Error Messages                 ║');
   console.log('╚════════════════════════════════════════════╝\n');
+  
+  console.log('📋 Health Check: http://localhost:' + PORT + '/api/health');
+  console.log('📊 API Endpoints:');
+  console.log('   GET  /api/matches');
+  console.log('   GET  /api/predictions');
+  console.log('   POST /api/fetch-matches');
+  console.log('   POST /api/update-predictions\n');
 });
 
 process.on('SIGINT', async () => {
   console.log('\n🛑 Shutting down gracefully...');
-  await mongoose.connection.close();
-  console.log('✅ MongoDB connection closed');
+  if (isMongoConnected) {
+    await mongoose.connection.close();
+    console.log('✅ MongoDB connection closed');
+  }
   process.exit(0);
 });
