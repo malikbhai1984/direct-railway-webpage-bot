@@ -1,6 +1,3 @@
-
-
-
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
@@ -263,68 +260,98 @@ async function fetchFromApiFootball() {
       return null;
     }
     
-    // IMPORTANT: Fetch TODAY and TOMORROW
-    const today = new Date().toISOString().split('T')[0];
-    const tomorrow = new Date(Date.now() + 24*60*60*1000).toISOString().split('T')[0];
+    // Get today and tomorrow in UTC (API uses UTC)
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
     
-    console.log('📅 Fetching matches for:', today, 'and', tomorrow);
+    const todayStr = today.toISOString().split('T')[0];
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    
+    console.log('📅 Fetching for dates (UTC):', todayStr, 'and', tomorrowStr);
     
     let allMatches = [];
     
-    // Fetch for both dates
-    for (const targetDate of [today, tomorrow]) {
-      for (const [leagueId, leagueName] of Object.entries(TOP_LEAGUES)) {
-        if (apiFootballCalls >= API_FOOTBALL_LIMIT) break;
-        
-        try {
-          const response = await fetch(
-            `https://v3.football.api-sports.io/fixtures?league=${leagueId}&season=2024&date=${targetDate}`,
-            {
-              headers: {
-                'x-rapidapi-key': API_FOOTBALL_KEY,
-                'x-rapidapi-host': 'v3.football.api-sports.io'
-              }
-            }
-          );
-          
-          apiFootballCalls++;
-          
-          if (response.ok) {
-            const data = await response.json();
-            if (data.response && data.response.length > 0) {
-              console.log(`✅ ${leagueName} (${targetDate}): ${data.response.length} matches`);
-              
-              const matches = data.response.map(fixture => ({
-                match_id: `af_${fixture.fixture.id}`,
-                home_team: fixture.teams.home.name,
-                away_team: fixture.teams.away.name,
-                league: fixture.league.name,
-                league_name: fixture.league.name,
-                home_score: fixture.goals.home,
-                away_score: fixture.goals.away,
-                status: convertStatus(fixture.fixture.status.short),
-                match_time: fixture.fixture.date,
-                match_time_pkt: toPakistanTime(fixture.fixture.date),
-                match_date: new Date(fixture.fixture.date),
-                venue: fixture.fixture.venue?.name || 'Unknown',
-                home_logo: fixture.teams.home.logo,
-                away_logo: fixture.teams.away.logo,
-                api_source: 'API-Football',
-                is_world_cup_qualifier: leagueName.includes('World Cup')
-              }));
-              
-              allMatches = [...allMatches, ...matches];
-            }
-          }
-        } catch (error) {
-          console.error(`❌ Error fetching ${leagueName}:`, error.message);
-        }
-      }
-      
+    // STRATEGY: Fetch ALL matches for today/tomorrow first, then filter by league
+    for (const targetDate of [todayStr, tomorrowStr]) {
       if (apiFootballCalls >= API_FOOTBALL_LIMIT) break;
+      
+      try {
+        console.log(`\n🔍 Fetching ALL matches for ${targetDate}...`);
+        
+        const response = await fetch(
+          `https://v3.football.api-sports.io/fixtures?date=${targetDate}`,
+          {
+            headers: {
+              'x-rapidapi-key': API_FOOTBALL_KEY,
+              'x-rapidapi-host': 'v3.football.api-sports.io'
+            },
+            timeout: 10000
+          }
+        );
+        
+        apiFootballCalls++;
+        
+        if (!response.ok) {
+          console.log(`❌ API returned status: ${response.status}`);
+          continue;
+        }
+        
+        const data = await response.json();
+        
+        if (!data.response || data.response.length === 0) {
+          console.log(`⚠️ No matches found for ${targetDate}`);
+          continue;
+        }
+        
+        console.log(`✅ Found ${data.response.length} total matches for ${targetDate}`);
+        
+        // Filter for our target leagues
+        const filteredMatches = data.response.filter(fixture => {
+          const leagueId = fixture.league.id;
+          return Object.keys(TOP_LEAGUES).includes(String(leagueId));
+        });
+        
+        console.log(`🎯 ${filteredMatches.length} matches from target leagues`);
+        
+        // Show which leagues have matches
+        const leagueCounts = {};
+        filteredMatches.forEach(f => {
+          const leagueName = f.league.name;
+          leagueCounts[leagueName] = (leagueCounts[leagueName] || 0) + 1;
+        });
+        
+        Object.entries(leagueCounts).forEach(([league, count]) => {
+          console.log(`   📌 ${league}: ${count} match(es)`);
+        });
+        
+        const matches = filteredMatches.map(fixture => ({
+          match_id: `af_${fixture.fixture.id}`,
+          home_team: fixture.teams.home.name,
+          away_team: fixture.teams.away.name,
+          league: fixture.league.name,
+          league_name: fixture.league.name,
+          home_score: fixture.goals.home,
+          away_score: fixture.goals.away,
+          status: convertStatus(fixture.fixture.status.short),
+          match_time: fixture.fixture.date,
+          match_time_pkt: toPakistanTime(fixture.fixture.date),
+          match_date: new Date(fixture.fixture.date),
+          venue: fixture.fixture.venue?.name || 'Unknown',
+          home_logo: fixture.teams.home.logo,
+          away_logo: fixture.teams.away.logo,
+          api_source: 'API-Football',
+          is_world_cup_qualifier: fixture.league.name.includes('World Cup')
+        }));
+        
+        allMatches = [...allMatches, ...matches];
+        
+      } catch (error) {
+        console.error(`❌ Error fetching date ${targetDate}:`, error.message);
+      }
     }
     
-    console.log(`✅ Total matches from API-Football: ${allMatches.length}`);
+    console.log(`\n✅ Total matches from API-Football: ${allMatches.length}`);
     return allMatches.length > 0 ? allMatches : null;
   } catch (error) {
     console.error('❌ API-Football Error:', error.message);
@@ -537,6 +564,58 @@ app.post('/api/mark-predictions-seen', async (req, res) => {
     
     await Prediction.updateMany({ is_new: true }, { is_new: false });
     res.json({ success: true, message: 'Predictions marked as seen' });
+  } catch (error) {
+    console.error('❌ Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// EMERGENCY: Clear all old data
+app.get('/api/clear-all-data', async (req, res) => {
+  try {
+    if (!isMongoConnected) {
+      return res.status(503).json({ success: false, error: 'MongoDB not connected' });
+    }
+    
+    const matchesDeleted = await Match.deleteMany({});
+    const predictionsDeleted = await Prediction.deleteMany({});
+    
+    console.log('🗑️ DATABASE CLEARED!');
+    console.log(`   Matches deleted: ${matchesDeleted.deletedCount}`);
+    console.log(`   Predictions deleted: ${predictionsDeleted.deletedCount}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'All data cleared',
+      matchesDeleted: matchesDeleted.deletedCount,
+      predictionsDeleted: predictionsDeleted.deletedCount
+    });
+  } catch (error) {
+    console.error('❌ Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Delete old matches (older than 6 hours)
+app.get('/api/cleanup-old', async (req, res) => {
+  try {
+    if (!isMongoConnected) {
+      return res.status(503).json({ success: false, error: 'MongoDB not connected' });
+    }
+    
+    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+    
+    const result = await Match.deleteMany({
+      match_date: { $lt: sixHoursAgo }
+    });
+    
+    console.log(`🗑️ Deleted ${result.deletedCount} old matches`);
+    
+    res.json({ 
+      success: true, 
+      deleted: result.deletedCount,
+      message: `Deleted ${result.deletedCount} matches older than 6 hours`
+    });
   } catch (error) {
     console.error('❌ Error:', error);
     res.status(500).json({ success: false, error: error.message });
