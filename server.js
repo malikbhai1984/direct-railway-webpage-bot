@@ -41,15 +41,12 @@ const API_FOOTBALL_LIMIT = 100;
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(__dirname));
 
 // MongoDB
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/football-predictions';
 
-mongoose.connect(MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
+mongoose.connect(MONGODB_URI)
 .then(() => {
   console.log('✅ MongoDB Connected Successfully!');
   console.log('📦 Database:', mongoose.connection.db.databaseName);
@@ -547,7 +544,7 @@ app.post('/api/update-predictions', async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // ==================== AUTO TASKS ====================
