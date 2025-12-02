@@ -1,6 +1,4 @@
 
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -56,7 +54,7 @@
 
         @keyframes blink {
             0%, 50%, 100% { opacity: 1; }
-            25%, 75% { opacity: 0; }
+            25%, 75% { opacity: 0.3; }
         }
 
         .pkt-time {
@@ -87,7 +85,7 @@
         .button-container {
             display: flex;
             justify-content: center;
-            gap: 20px;
+            gap: 15px;
             margin: 20px 0;
             flex-wrap: wrap;
         }
@@ -96,8 +94,8 @@
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
             border: none;
-            padding: 15px 40px;
-            font-size: 1.1rem;
+            padding: 15px 35px;
+            font-size: 1.05rem;
             font-weight: bold;
             border-radius: 10px;
             cursor: pointer;
@@ -114,6 +112,10 @@
         .tab-button.active {
             background: linear-gradient(135deg, #56ab2f, #a8e063);
             transform: scale(1.05);
+        }
+
+        .tab-button.fetch-btn {
+            background: linear-gradient(135deg, #f857a6, #ff5858);
         }
 
         .new-badge {
@@ -491,7 +493,6 @@
         </div>
     </div>
 
-    <!-- Button Container -->
     <div class="button-container">
         <button class="tab-button active" id="btnMatches" onclick="showMatches()">
             📅 Today's Live Matches
@@ -500,13 +501,12 @@
             🎯 Today's Predictions
             <span class="new-badge hidden" id="newBadge">NEW!</span>
         </button>
-        <button class="tab-button" onclick="manualFetch()" style="background: linear-gradient(135deg, #f857a6, #ff5858);">
+        <button class="tab-button fetch-btn" onclick="manualFetch()">
             🔄 Fetch Matches Now
         </button>
     </div>
 
     <div class="container">
-        <!-- Matches Section -->
         <div class="section" id="matchesSection">
             <h2>
                 📅 Today's Matches
@@ -520,7 +520,6 @@
             </div>
         </div>
 
-        <!-- Predictions Section -->
         <div class="section hidden" id="predictionsSection">
             <h2>
                 🎯 AI Predictions
@@ -536,7 +535,6 @@
     </div>
 
     <script>
-        // FIXED: Auto-detect API URL (works on both localhost and Railway)
         const API_BASE_URL = window.location.hostname === 'localhost' 
             ? 'http://localhost:8080' 
             : window.location.origin;
@@ -546,7 +544,6 @@
         let currentPredictionCount = 0;
         let newPredictionIds = new Set();
 
-        // Update Pakistan time
         function updatePakistanTime() {
             const now = new Date();
             const pktTime = now.toLocaleString('en-PK', { 
@@ -562,7 +559,6 @@
             });
             document.getElementById('pktTime').textContent = `🇵🇰 ${pktTime}`;
             
-            // Update last update time
             const updateTime = now.toLocaleTimeString('en-GB', {
                 hour: '2-digit',
                 minute: '2-digit',
@@ -571,7 +567,6 @@
             document.getElementById('lastUpdate').textContent = updateTime;
         }
 
-        // Show/Hide sections
         function showMatches() {
             document.getElementById('matchesSection').classList.remove('hidden');
             document.getElementById('predictionsSection').classList.add('hidden');
@@ -584,13 +579,10 @@
             document.getElementById('predictionsSection').classList.remove('hidden');
             document.getElementById('btnMatches').classList.remove('active');
             document.getElementById('btnPredictions').classList.add('active');
-            
-            // Hide new badge when viewing predictions
             document.getElementById('newBadge').classList.add('hidden');
             newPredictionIds.clear();
         }
 
-        // Get status badge
         function getStatusBadge(status) {
             const statusMap = {
                 'NS': { class: 'status-ns', text: 'Not Started' },
@@ -606,7 +598,6 @@
             return `<span class="status-badge ${s.class}">${s.text}</span>`;
         }
 
-        // Render matches
         function renderMatches(matches) {
             const container = document.getElementById('matchesContainer');
             
@@ -616,7 +607,7 @@
                         <h3>📭 No matches scheduled for today</h3>
                         <p style="margin-top: 15px; color: #666;">
                             Matches are fetched every 15 minutes.<br>
-                            Check back later or view existing predictions in the Predictions tab.
+                            Click "Fetch Matches Now" to manually refresh.
                         </p>
                     </div>
                 `;
@@ -654,7 +645,6 @@
             document.getElementById('matchBadge').textContent = matches.length;
         }
 
-        // Render predictions
         function renderPredictions(predictions) {
             const container = document.getElementById('predictionsContainer');
             
@@ -664,7 +654,7 @@
                         <h3>🤖 No predictions available yet</h3>
                         <p style="margin-top: 15px; color: #666;">
                             Predictions are generated when matches are scheduled.<br>
-                            Check the Matches tab or wait for the next update cycle.
+                            Check the Matches tab or click "Fetch Matches Now".
                         </p>
                     </div>
                 `;
@@ -673,14 +663,11 @@
                 return;
             }
 
-            // Check for new predictions
             if (currentPredictionCount > 0 && predictions.length > currentPredictionCount) {
                 const newCount = predictions.length - currentPredictionCount;
-                // Mark new predictions
                 for (let i = 0; i < newCount; i++) {
                     newPredictionIds.add(predictions[i]._id || predictions[i].match_id || i);
                 }
-                // Show NEW badge
                 document.getElementById('newBadge').classList.remove('hidden');
             }
             currentPredictionCount = predictions.length;
@@ -705,7 +692,6 @@
                         🕐 <span class="time-pkt">${pred.match_time_pkt || 'Time TBA'}</span>
                     </div>
 
-                    <!-- Winner Probabilities -->
                     <div class="prob-bars">
                         <div class="prob-bar">
                             <div class="prob-label">Home Win</div>
@@ -721,7 +707,6 @@
                         </div>
                     </div>
 
-                    <!-- xG Display -->
                     <div class="xg-display">
                         <div class="xg-item">
                             <div class="xg-label">Home xG</div>
@@ -737,7 +722,6 @@
                         </div>
                     </div>
 
-                    <!-- Markets -->
                     <div class="markets">
                         <div class="market-item">
                             <div class="market-label">BTTS</div>
@@ -757,7 +741,6 @@
                         </div>
                     </div>
 
-                    <!-- Strong Markets -->
                     ${pred.strong_markets && pred.strong_markets.length > 0 ? `
                         <div class="strong-markets">
                             <h4>🔥 High Confidence (≥85%)</h4>
@@ -776,10 +759,9 @@
             document.getElementById('predBadge').textContent = predictions.length;
         }
 
-        // Fetch data from backend
         async function fetchData() {
             try {
-                console.log('🔄 Fetching data from:', API_BASE_URL);
+                console.log('🔄 Fetching data...');
                 
                 const [matchesRes, predictionsRes] = await Promise.all([
                     fetch(`${API_BASE_URL}/api/matches`),
@@ -794,14 +776,10 @@
 
                 if (matchesData.success) {
                     renderMatches(matchesData.data);
-                } else {
-                    console.error('❌ Matches fetch failed:', matchesData.error);
                 }
                 
                 if (predictionsData.success) {
                     renderPredictions(predictionsData.data);
-                } else {
-                    console.error('❌ Predictions fetch failed:', predictionsData.error);
                 }
             } catch (error) {
                 console.error('❌ Fetch error:', error);
@@ -809,23 +787,13 @@
                     `<div class="empty-state">
                         <h3>❌ Connection Error</h3>
                         <p style="margin-top: 15px; color: #666;">
-                            Unable to connect to the server.<br>
-                            Error: ${error.message}<br>
-                            <small>API URL: ${API_BASE_URL}</small>
-                        </p>
-                    </div>`;
-                document.getElementById('predictionsContainer').innerHTML = 
-                    `<div class="empty-state">
-                        <h3>❌ Connection Error</h3>
-                        <p style="margin-top: 15px; color: #666;">
-                            Unable to connect to the server.<br>
-                            Please check if the backend is running.
+                            Unable to connect to server.<br>
+                            Error: ${error.message}
                         </p>
                     </div>`;
             }
         }
 
-        // Manual fetch button
         async function manualFetch() {
             const btn = event.target;
             btn.disabled = true;
@@ -842,7 +810,7 @@
                     setTimeout(() => {
                         btn.textContent = '🔄 Fetch Matches Now';
                         btn.disabled = false;
-                        fetchData(); // Refresh display
+                        fetchData();
                     }, 2000);
                 } else {
                     btn.textContent = '❌ Failed';
@@ -861,16 +829,14 @@
             }
         }
 
-        // Initialize
         window.addEventListener('DOMContentLoaded', () => {
             console.log('🚀 Football Predictions System Starting...');
-            console.log('📍 Environment:', window.location.hostname === 'localhost' ? 'Development' : 'Production');
             
             updatePakistanTime();
             setInterval(updatePakistanTime, 1000);
             
             fetchData();
-            setInterval(fetchData, 5 * 60 * 1000); // Refresh every 5 minutes
+            setInterval(fetchData, 5 * 60 * 1000);
         });
     </script>
 </body>
