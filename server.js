@@ -374,13 +374,25 @@ app.get('/api/matches', async (req, res) => {
       return res.status(503).json({ success: false, error: 'MongoDB offline' });
     }
     
+    // Get today and tomorrow to filter
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 2); // Today + tomorrow + buffer
+    tomorrow.setHours(23, 59, 59, 999);
+    
     const matches = await Match.find({
-      status: { $in: ['NS', 'LIVE', '1H', '2H', 'HT', 'ET'] }
+      status: { $in: ['NS', 'LIVE', '1H', '2H', 'HT', 'ET'] },
+      match_date: { $lte: tomorrow } // Only today/tomorrow matches
     })
       .sort({ match_date: 1 })
       .limit(100);
     
-    console.log(`📊 Active matches: ${matches.length}`);
+    console.log(`📊 Active matches returned: ${matches.length}`);
+    
+    // Log sample for debugging
+    if (matches.length > 0) {
+      console.log(`   Sample: ${matches[0].home_team} vs ${matches[0].away_team} (${matches[0].league})`);
+    }
     
     res.json({
       success: true,
@@ -388,6 +400,7 @@ app.get('/api/matches', async (req, res) => {
       data: matches
     });
   } catch (err) {
+    console.error('❌ API Error:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -399,8 +412,14 @@ app.get('/api/predictions', async (req, res) => {
       return res.status(503).json({ success: false, error: 'MongoDB offline' });
     }
     
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 2);
+    tomorrow.setHours(23, 59, 59, 999);
+    
     const activeIds = await Match.find({
-      status: { $in: ['NS', 'LIVE', '1H', '2H', 'HT', 'ET'] }
+      status: { $in: ['NS', 'LIVE', '1H', '2H', 'HT', 'ET'] },
+      match_date: { $lte: tomorrow }
     }).distinct('match_id');
     
     const predictions = await Prediction.find({
@@ -411,7 +430,7 @@ app.get('/api/predictions', async (req, res) => {
     
     const newCount = predictions.filter(p => p.is_new).length;
     
-    console.log(`📊 Predictions: ${predictions.length} (${newCount} new)`);
+    console.log(`📊 Predictions returned: ${predictions.length} (${newCount} new)`);
     
     res.json({
       success: true,
@@ -420,6 +439,7 @@ app.get('/api/predictions', async (req, res) => {
       data: predictions
     });
   } catch (err) {
+    console.error('❌ API Error:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
