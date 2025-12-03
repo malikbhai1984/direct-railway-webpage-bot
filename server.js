@@ -1,7 +1,80 @@
 
 
 
-import express from 'express';
+
+// ==================== FETCH MATCHES (WITH FALLBACK) ====================
+async function fetchMatches() {
+  console.log('\n🔄 ============ FETCHING MATCHES ============');
+  
+  const pkTime = new Date().toLocaleString('en-PK', {
+    timeZone: 'Asia/Karachi',
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+  
+  console.log('🇵🇰 Pakistan Time:', pkTime);
+  
+  if (!isMongoConnected) {
+    console.log('❌ MongoDB not connected');
+    return [];
+  }
+  
+  let allMatches = [];
+  
+  // STEP 1: Try API-Football first
+  const apiFootballMatches = await fetchFromApiFootball();
+  if (apiFootballMatches && apiFootballMatches.length > 0) {
+    allMatches = [...allMatches, ...apiFootballMatches];
+  }
+  
+  // STEP 2: If API-Football limit reached or failed, try Football-Data
+  if (apiFootballCalls >= API_FOOTBALL_LIMIT || !apiFootballMatches) {
+    console.log('\n🔄 Switching to Football-Data.org...');
+    const footballDataMatches = await fetchFromFootballData();
+    if (footballDataMatches && footballDataMatches.length > 0) {
+      allMatches = [...allMatches, ...footballDataMatches];
+    }
+  }
+  
+  // Remove duplicates (same match from both APIs)
+  const uniqueMatches = [];
+  const seen = new Set();
+  
+  for (const match of allMatches) {
+    const key = `${match.home_team}-${match.away_team}-${match.match_date}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniqueMatches.push(match);
+    }
+  }
+  
+  console.log(`\n✅ Total Unique Matches: ${uniqueMatches.length}`);
+  
+  // Save to database
+  let saved = 0;
+  for (const match of uniqueMatches) {
+    try {
+      await Match.findOneAndUpdate(
+        { match_id: match.match_id },
+        match,
+        { upsert: true, new: true }
+      );
+      saved++;
+    } catch (err) {
+      console.error('❌ Save error:', err.message);
+    }
+  }
+  
+  console.log(`✅ Saved: ${saved}/${uniqueMatches.length} to database`);
+  console.log('============ FETCH COMPLETE ============\n');
+  
+  return uniqueMatches;
+}import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import path from 'path';
@@ -197,34 +270,17 @@ function calculatePredictions(match) {
   };
 }
 
-// ==================== FETCH MATCHES ====================
-async function fetchMatches() {
-  console.log('\n🔄 ============ FETCHING MATCHES ============');
-  
-  const pkTime = new Date().toLocaleString('en-PK', {
-    timeZone: 'Asia/Karachi',
-    weekday: 'long',
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true
-  });
-  
-  console.log('🇵🇰 Pakistan Time:', pkTime);
-  
-  if (!isMongoConnected) {
-    console.log('❌ MongoDB not connected');
-    return [];
-  }
-  
-  if (apiCalls >= API_LIMIT) {
-    console.log('⚠️ API limit reached');
-    return [];
-  }
-  
+// ==================== FETCH FROM API-FOOTBALL ====================
+async function fetchFromApiFootball() {
   try {
+    console.log('\n🌐 Fetching from API-Football...');
+    console.log(`📊 API Calls: ${apiFootballCalls}/${API_FOOTBALL_LIMIT}`);
+    
+    if (apiFootballCalls >= API_FOOTBALL_LIMIT) {
+      console.log('⚠️ API-Football limit reached');
+      return null;
+    }
+    
     const today = new Date().toISOString().split('T')[0];
     const tomorrow = new Date(Date.now() + 24*60*60*1000).toISOString().split('T')[0];
     
@@ -232,100 +288,169 @@ async function fetchMatches() {
     
     let allMatches = [];
     
+    // Fetch all matches for these dates
     for (const date of [today, tomorrow]) {
-      if (apiCalls >= API_LIMIT) break;
+      if (apiFootballCalls >= API_FOOTBALL_LIMIT) break;
       
-      console.log(`\n🌐 Fetching ${date}...`);
+      console.log(`\n🔍 API-Football: Fetching ${date}...`);
       
-      const response = await fetch(
-        `https://v3.football.api-sports.io/fixtures?date=${date}`,
-        {
-          headers: {
-            'x-rapidapi-key': API_FOOTBALL_KEY,
-            'x-rapidapi-host': 'v3.football.api-sports.io'
-          }
-        }
-      );
-      
-      apiCalls++;
-      
-      if (!response.ok) {
-        console.log(`❌ API Error: ${response.status}`);
-        continue;
-      }
-      
-      const data = await response.json();
-      
-      if (!data.response || data.response.length === 0) {
-        console.log(`⚠️ No matches for ${date}`);
-        continue;
-      }
-      
-      console.log(`✅ Found ${data.response.length} total matches`);
-      
-      // Filter for target leagues
-      const filtered = data.response.filter(f => 
-        Object.keys(TOP_LEAGUES).includes(String(f.league.id))
-      );
-      
-      console.log(`🎯 Filtered: ${filtered.length} from target leagues`);
-      
-      // Show breakdown
-      const breakdown = {};
-      filtered.forEach(f => {
-        const name = f.league.name;
-        breakdown[name] = (breakdown[name] || 0) + 1;
-      });
-      
-      Object.entries(breakdown).forEach(([league, count]) => {
-        console.log(`   📌 ${league}: ${count}`);
-      });
-      
-      const matches = filtered.map(f => ({
-        match_id: `af_${f.fixture.id}`,
-        home_team: f.teams.home.name,
-        away_team: f.teams.away.name,
-        league: f.league.name,
-        league_name: f.league.name,
-        home_score: f.goals.home,
-        away_score: f.goals.away,
-        status: convertStatus(f.fixture.status.short),
-        match_time: f.fixture.date,
-        match_time_pkt: toPakistanTime(f.fixture.date),
-        match_date: new Date(f.fixture.date),
-        venue: f.fixture.venue?.name || 'Unknown',
-        home_logo: f.teams.home.logo,
-        away_logo: f.teams.away.logo
-      }));
-      
-      allMatches = [...allMatches, ...matches];
-    }
-    
-    console.log(`\n✅ Total: ${allMatches.length} matches fetched`);
-    
-    // Save to DB
-    let saved = 0;
-    for (const match of allMatches) {
       try {
-        await Match.findOneAndUpdate(
-          { match_id: match.match_id },
-          match,
-          { upsert: true, new: true }
+        const response = await fetch(
+          `https://v3.football.api-sports.io/fixtures?date=${date}`,
+          {
+            headers: {
+              'x-rapidapi-key': API_FOOTBALL_KEY,
+              'x-rapidapi-host': 'v3.football.api-sports.io'
+            }
+          }
         );
-        saved++;
-      } catch (err) {
-        console.error('❌ Save error:', err.message);
+        
+        apiFootballCalls++;
+        
+        if (!response.ok) {
+          console.log(`❌ API Error: ${response.status}`);
+          continue;
+        }
+        
+        const data = await response.json();
+        
+        if (!data.response || data.response.length === 0) {
+          console.log(`⚠️ No matches for ${date}`);
+          continue;
+        }
+        
+        console.log(`✅ Found ${data.response.length} total matches`);
+        
+        // Filter for target leagues
+        const filtered = data.response.filter(f => 
+          Object.keys(TOP_LEAGUES).includes(String(f.league.id))
+        );
+        
+        console.log(`🎯 Filtered: ${filtered.length} from target leagues`);
+        
+        // Show breakdown
+        const breakdown = {};
+        filtered.forEach(f => {
+          const name = f.league.name;
+          breakdown[name] = (breakdown[name] || 0) + 1;
+        });
+        
+        Object.entries(breakdown).forEach(([league, count]) => {
+          console.log(`   📌 ${league}: ${count}`);
+        });
+        
+        const matches = filtered.map(f => ({
+          match_id: `af_${f.fixture.id}`,
+          home_team: f.teams.home.name,
+          away_team: f.teams.away.name,
+          league: f.league.name,
+          league_name: f.league.name,
+          home_score: f.goals.home,
+          away_score: f.goals.away,
+          status: convertStatus(f.fixture.status.short),
+          match_time: f.fixture.date,
+          match_time_pkt: toPakistanTime(f.fixture.date),
+          match_date: new Date(f.fixture.date),
+          venue: f.fixture.venue?.name || 'Unknown',
+          home_logo: f.teams.home.logo,
+          away_logo: f.teams.away.logo,
+          api_source: 'API-Football'
+        }));
+        
+        allMatches = [...allMatches, ...matches];
+        
+      } catch (error) {
+        console.error(`❌ Error: ${error.message}`);
       }
     }
     
-    console.log(`✅ Saved: ${saved}/${allMatches.length}`);
-    console.log('============ COMPLETE ============\n');
-    
-    return allMatches;
+    console.log(`\n✅ API-Football Total: ${allMatches.length} matches`);
+    return allMatches.length > 0 ? allMatches : null;
     
   } catch (error) {
-    console.error('❌ Fetch error:', error.message);
-    return [];
+    console.error('❌ API-Football Error:', error.message);
+    return null;
+  }
+}
+
+// ==================== FETCH FROM FOOTBALL-DATA ====================
+async function fetchFromFootballData() {
+  try {
+    console.log('\n🌐 Fetching from Football-Data.org...');
+    console.log(`📊 Calls: ${footballDataCalls}/${FOOTBALL_DATA_LIMIT}`);
+    
+    if (footballDataCalls >= FOOTBALL_DATA_LIMIT) {
+      console.log('⚠️ Football-Data limit reached');
+      return null;
+    }
+    
+    const today = new Date().toISOString().split('T')[0];
+    const tomorrow = new Date(Date.now() + 24*60*60*1000).toISOString().split('T')[0];
+    
+    let allMatches = [];
+    
+    for (const date of [today, tomorrow]) {
+      if (footballDataCalls >= FOOTBALL_DATA_LIMIT) break;
+      
+      console.log(`\n🔍 Football-Data: Fetching ${date}...`);
+      
+      try {
+        const response = await fetch(
+          `https://api.football-data.org/v4/matches?date=${date}`,
+          {
+            headers: {
+              'X-Auth-Token': FOOTBALL_DATA_KEY
+            }
+          }
+        );
+        
+        footballDataCalls++;
+        
+        if (!response.ok) {
+          console.log(`❌ API Error: ${response.status}`);
+          continue;
+        }
+        
+        const data = await response.json();
+        
+        if (!data.matches || data.matches.length === 0) {
+          console.log(`⚠️ No matches for ${date}`);
+          continue;
+        }
+        
+        console.log(`✅ Found ${data.matches.length} matches`);
+        
+        const matches = data.matches.map(m => ({
+          match_id: `fd_${m.id}`,
+          home_team: m.homeTeam.name,
+          away_team: m.awayTeam.name,
+          league: m.competition.name,
+          league_name: m.competition.name,
+          home_score: m.score.fullTime.home,
+          away_score: m.score.fullTime.away,
+          status: convertStatus(m.status),
+          match_time: m.utcDate,
+          match_time_pkt: toPakistanTime(m.utcDate),
+          match_date: new Date(m.utcDate),
+          venue: m.venue || 'Unknown',
+          home_logo: m.homeTeam.crest || null,
+          away_logo: m.awayTeam.crest || null,
+          api_source: 'Football-Data'
+        }));
+        
+        allMatches = [...allMatches, ...matches];
+        
+      } catch (error) {
+        console.error(`❌ Error: ${error.message}`);
+      }
+    }
+    
+    console.log(`\n✅ Football-Data Total: ${allMatches.length} matches`);
+    return allMatches.length > 0 ? allMatches : null;
+    
+  } catch (error) {
+    console.error('❌ Football-Data Error:', error.message);
+    return null;
   }
 }
 
@@ -373,7 +498,8 @@ app.get('/api/health', (req, res) => {
   res.json({
     success: true,
     mongodb: isMongoConnected ? 'Connected' : 'Disconnected',
-    apiCalls: `${apiCalls}/${API_LIMIT}`,
+    apiFootballCalls: `${apiFootballCalls}/${API_FOOTBALL_LIMIT}`,
+    footballDataCalls: `${footballDataCalls}/${FOOTBALL_DATA_LIMIT}`,
     time: new Date().toISOString()
   });
 });
@@ -604,9 +730,12 @@ app.listen(PORT, () => {
   console.log('║   ⚽ FOOTBALL PREDICTION SYSTEM ⚽          ║');
   console.log('║                                            ║');
   console.log(`║   🚀 Server: http://localhost:${PORT}     ║`);
-  console.log('║   📅 Today + Tomorrow matches              ║');
-  console.log('║   🗑️  Auto-remove finished                 ║');
-  console.log('║   🏆 Arab Cup included (ID: 480)           ║');
+  console.log('║   📅 Fetches: Today + Tomorrow             ║');
+  console.log('║   🌐 API 1: API-Football (100 calls)       ║');
+  console.log('║   🌐 API 2: Football-Data (50 calls)       ║');
+  console.log('║   🔄 Auto-switch on limit                  ║');
+  console.log('║   🗑️  Auto-cleanup finished                ║');
+  console.log('║   🏆 Arab Cup + World Cup Qualifiers       ║');
   console.log('║   🇵🇰 Pakistan Time                         ║');
   console.log('╚════════════════════════════════════════════╝\n');
 });
