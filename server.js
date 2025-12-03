@@ -334,12 +334,23 @@ async function cleanupFinished() {
   if (!isMongoConnected) return;
   
   try {
-    const result = await Match.deleteMany({
+    // Delete finished matches
+    const finishedResult = await Match.deleteMany({
       status: { $in: ['FT', 'AET', 'PEN'] }
     });
     
-    if (result.deletedCount > 0) {
-      console.log(`🗑️ Removed ${result.deletedCount} finished matches`);
+    // Delete old matches (older than today)
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    
+    const oldResult = await Match.deleteMany({
+      match_date: { $lt: todayStart }
+    });
+    
+    const totalDeleted = finishedResult.deletedCount + oldResult.deletedCount;
+    
+    if (totalDeleted > 0) {
+      console.log(`🗑️ Removed ${finishedResult.deletedCount} finished + ${oldResult.deletedCount} old matches = ${totalDeleted} total`);
       
       // Remove orphaned predictions
       const activeIds = await Match.find().distinct('match_id');
@@ -348,7 +359,7 @@ async function cleanupFinished() {
       });
       
       if (predResult.deletedCount > 0) {
-        console.log(`🗑️ Removed ${predResult.deletedCount} old predictions`);
+        console.log(`🗑️ Removed ${predResult.deletedCount} orphaned predictions`);
       }
     }
   } catch (err) {
@@ -374,24 +385,35 @@ app.get('/api/matches', async (req, res) => {
       return res.status(503).json({ success: false, error: 'MongoDB offline' });
     }
     
-    // Get today and tomorrow to filter
+    // Get current time in UTC
     const now = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 2); // Today + tomorrow + buffer
-    tomorrow.setHours(23, 59, 59, 999);
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    
+    const tomorrowEnd = new Date(now);
+    tomorrowEnd.setDate(tomorrowEnd.getDate() + 2);
+    tomorrowEnd.setHours(23, 59, 59, 999);
+    
+    console.log('📅 Filtering matches:');
+    console.log('   From:', todayStart.toISOString());
+    console.log('   To:', tomorrowEnd.toISOString());
     
     const matches = await Match.find({
       status: { $in: ['NS', 'LIVE', '1H', '2H', 'HT', 'ET'] },
-      match_date: { $lte: tomorrow } // Only today/tomorrow matches
+      match_date: { 
+        $gte: todayStart,  // From today onwards
+        $lte: tomorrowEnd   // Until tomorrow end
+      }
     })
       .sort({ match_date: 1 })
       .limit(100);
     
     console.log(`📊 Active matches returned: ${matches.length}`);
     
-    // Log sample for debugging
     if (matches.length > 0) {
-      console.log(`   Sample: ${matches[0].home_team} vs ${matches[0].away_team} (${matches[0].league})`);
+      console.log(`   Sample: ${matches[0].home_team} vs ${matches[0].away_team}`);
+      console.log(`   League: ${matches[0].league}`);
+      console.log(`   Date: ${matches[0].match_date}`);
     }
     
     res.json({
@@ -413,13 +435,19 @@ app.get('/api/predictions', async (req, res) => {
     }
     
     const now = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 2);
-    tomorrow.setHours(23, 59, 59, 999);
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    
+    const tomorrowEnd = new Date(now);
+    tomorrowEnd.setDate(tomorrowEnd.getDate() + 2);
+    tomorrowEnd.setHours(23, 59, 59, 999);
     
     const activeIds = await Match.find({
       status: { $in: ['NS', 'LIVE', '1H', '2H', 'HT', 'ET'] },
-      match_date: { $lte: tomorrow }
+      match_date: { 
+        $gte: todayStart,
+        $lte: tomorrowEnd
+      }
     }).distinct('match_id');
     
     const predictions = await Prediction.find({
@@ -449,6 +477,44 @@ app.post('/api/mark-predictions-seen', async (req, res) => {
     await Prediction.updateMany({ is_new: true }, { is_new: false });
     res.json({ success: true });
   } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// EMERGENCY: Delete old matches (older than today)
+app.get('/api/cleanup-old-matches', async (req, res) => {
+  try {
+    if (!isMongoConnected) {
+      return res.status(503).json({ success: false, error: 'MongoDB offline' });
+    }
+    
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    
+    console.log('🗑️ Deleting matches older than:', todayStart.toISOString());
+    
+    const result = await Match.deleteMany({
+      match_date: { $lt: todayStart }
+    });
+    
+    console.log(`🗑️ Deleted ${result.deletedCount} old matches`);
+    
+    // Also delete orphaned predictions
+    const activeIds = await Match.find().distinct('match_id');
+    const predResult = await Prediction.deleteMany({
+      match_id: { $nin: activeIds }
+    });
+    
+    console.log(`🗑️ Deleted ${predResult.deletedCount} old predictions`);
+    
+    res.json({
+      success: true,
+      matchesDeleted: result.deletedCount,
+      predictionsDeleted: predResult.deletedCount,
+      message: `Cleaned up ${result.deletedCount} old matches`
+    });
+  } catch (err) {
+    console.error('❌ Cleanup error:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
