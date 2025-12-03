@@ -601,36 +601,38 @@
             const container = document.getElementById('matchesContainer');
             
             if (!matches || matches.length === 0) {
-                container.innerHTML = '<div class="empty-state">📭 No matches scheduled for today</div>';
+                container.innerHTML = '<div class="empty-state">📭 No live matches available right now. Check back later!</div>';
                 document.getElementById('matchBadge').textContent = '0';
                 document.getElementById('matchCount').textContent = '0';
                 return;
             }
 
-            container.innerHTML = matches.map(match => `
-                <div class="match-card">
-                    <div class="match-header">
-                        <span class="league-badge">${match.league_name || match.league || 'Unknown'}</span>
-                        ${getStatusBadge(match.status)}
-                    </div>
-                    <div class="match-time">
-                        🕐 <span class="time-pkt">${match.match_time_pkt || 'Time TBA'}</span>
-                    </div>
-                    <div class="teams">
-                        <div class="team">${match.home_team}</div>
-                        <div class="vs">VS</div>
-                        <div class="team">${match.away_team}</div>
-                    </div>
-                    ${match.status !== 'NS' && match.status !== 'SCHEDULED' ? `
-                        <div class="score">
-                            <span>${match.home_score || 0}</span>
-                            <span>-</span>
-                            <span>${match.away_score || 0}</span>
-                        </div>
-                    ` : ''}
-                    ${match.venue ? `<div style="text-align:center; color:#666; font-size:0.8rem; margin-top:5px;">📍 ${match.venue}</div>` : ''}
-                </div>
-            `).join('');
+            console.log('✅ Rendering', matches.length, 'matches');
+
+            container.innerHTML = matches.map(match => {
+                return '<div class="match-card">' +
+                    '<div class="match-header">' +
+                        '<span class="league-badge">' + (match.league_name || match.league || 'Unknown') + '</span>' +
+                        getStatusBadge(match.status) +
+                    '</div>' +
+                    '<div class="match-time">' +
+                        '🕐 <span class="time-pkt">' + (match.match_time_pkt || 'Time TBA') + '</span>' +
+                    '</div>' +
+                    '<div class="teams">' +
+                        '<div class="team">' + match.home_team + '</div>' +
+                        '<div class="vs">VS</div>' +
+                        '<div class="team">' + match.away_team + '</div>' +
+                    '</div>' +
+                    (match.status !== 'NS' && match.status !== 'SCHEDULED' ? 
+                        '<div class="score">' +
+                            '<span>' + (match.home_score || 0) + '</span>' +
+                            '<span>-</span>' +
+                            '<span>' + (match.away_score || 0) + '</span>' +
+                        '</div>' 
+                    : '') +
+                    (match.venue ? '<div style="text-align:center; color:#666; font-size:0.8rem; margin-top:5px;">📍 ' + match.venue + '</div>' : '') +
+                '</div>';
+            }).join('');
 
             document.getElementById('matchCount').textContent = matches.length;
             document.getElementById('matchBadge').textContent = matches.length;
