@@ -3,16 +3,11 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createServer } from 'http';
-import { WebSocketServer } from 'ws';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const server = createServer(app);
-const wss = new WebSocketServer({ server });
-
 const PORT = process.env.PORT || 8080;
 
 // API Configuration
@@ -752,8 +747,7 @@ async function calculateAdvancedPrediction(match) {
           trend: getTrend(homeProb, prevPrediction?.winner_prob?.home?.value),
           change: prevPrediction ? homeProb - prevPrediction.winner_prob.home.value : 0
         },
-        
-        // CONTINUATION FROM PREVIOUS FILE...
+// CONTINUATION FROM PREVIOUS FILE...
 
         draw: {
           value: drawProb,
@@ -944,12 +938,8 @@ async function updateLiveMatches() {
             { upsert: true, new: true }
           );
           
-          // Broadcast via WebSocket
-          broadcastUpdate({
-            type: 'prediction_update',
-            match_id: match.match_id,
-            data: prediction
-          });
+          // Update latest predictions for polling
+          updateLatestPredictions(prediction);
         }
       }
     }
@@ -987,7 +977,7 @@ app.get('/api/health', (req, res) => {
     mongodb: isMongoConnected ? 'Connected' : 'Disconnected',
     apiCalls: `${apiCalls}/${API_LIMIT}`,
     cacheSize: statsCache.size,
-    websocketClients: wsClients.length,
+    latestUpdates: latestPredictions.length,
     time: new Date().toISOString()
   });
 });
@@ -1050,6 +1040,14 @@ app.get('/api/predictions/high-confidence', async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// Latest updates endpoint (for polling)
+app.get('/api/latest-updates', (req, res) => {
+  res.json({
+    success: true,
+    updates: latestPredictions
+  });
 });
 
 app.post('/api/fetch-matches', async (req, res) => {
@@ -1133,7 +1131,7 @@ setInterval(() => {
 }, 10 * 60 * 1000);
 
 // ==================== START SERVER ====================
-server.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log('\n╔════════════════════════════════════════════╗');
   console.log('║  ⚡ PROFESSIONAL PREDICTION SYSTEM ⚡       ║');
   console.log('║                                            ║');
@@ -1141,7 +1139,7 @@ server.listen(PORT, () => {
   console.log('║  📊 Real-time stats from API               ║');
   console.log('║  🎯 Weighted algorithm (Form/Live/Context) ║');
   console.log('║  ⏱️  Live updates every 2 minutes          ║');
-  console.log('║  🔔 WebSocket for instant updates          ║');
+  console.log('║  🔄 Polling API for updates                ║');
   console.log('║  📈 Momentum & trend detection             ║');
   console.log('║  💰 Value bet identification               ║');
   console.log('║  💾 Smart caching system                   ║');
@@ -1161,20 +1159,3 @@ process.on('SIGINT', async () => {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
