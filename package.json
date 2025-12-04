@@ -24,8 +24,7 @@
     "mongoose": "^8.0.3",
     "moment-timezone": "^0.5.43",
     "node-cron": "^3.0.3",
-    "cors": "^2.8.5",
-    "ws": "^8.14.2"
+    "cors": "^2.8.5"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
