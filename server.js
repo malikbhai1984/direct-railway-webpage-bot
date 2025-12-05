@@ -21,6 +21,7 @@ const TOP_LEAGUES = {
 let apiCalls = 0;
 const API_LIMIT = 100;
 const statsCache = new Map(); // Cache for reducing API calls
+const latestPredictions = []; // Store latest predictions for polling
 
 // Middleware
 app.use(cors());
@@ -45,24 +46,17 @@ mongoose.connect(MONGODB_URI, {
   console.error('❌ MongoDB Error:', err.message);
 });
 
-// WebSocket connections
-let wsClients = [];
-wss.on('connection', (ws) => {
-  console.log('🔌 WebSocket client connected');
-  wsClients.push(ws);
+// Helper to update latest predictions (for polling)
+function updateLatestPredictions(prediction) {
+  latestPredictions.unshift({
+    ...prediction,
+    timestamp: new Date()
+  });
   
-  ws.on('close', () => {
-    wsClients = wsClients.filter(client => client !== ws);
-    console.log('🔌 WebSocket client disconnected');
-  });
-});
-
-function broadcastUpdate(data) {
-  wsClients.forEach(client => {
-    if (client.readyState === 1) { // OPEN
-      client.send(JSON.stringify(data));
-    }
-  });
+  // Keep only last 50 updates
+  if (latestPredictions.length > 50) {
+    latestPredictions.pop();
+  }
 }
 
 // ==================== ENHANCED SCHEMAS ====================
@@ -453,36 +447,6 @@ async function fetchTeamForm(teamId) {
   }
 }
 
-// ==================== FETCH H2H ====================
-
-async function fetchH2H(homeTeamId, awayTeamId) {
-  try {
-    const cacheKey = `h2h_${homeTeamId}_${awayTeamId}`;
-    const data = await apiCall(
-      `https://v3.football.api-sports.io/fixtures/headtohead?h2h=${homeTeamId}-${awayTeamId}&last=5`,
-      cacheKey,
-      1800000 // Cache for 30 minutes
-    );
-    
-    if (!data?.response) return { home_wins: 0, draws: 0, away_wins: 0 };
-    
-    let home_wins = 0, draws = 0, away_wins = 0;
-    
-    data.response.forEach(match => {
-      const homeGoals = match.goals.home;
-      const awayGoals = match.goals.away;
-      
-      if (homeGoals > awayGoals) home_wins++;
-      else if (homeGoals < awayGoals) away_wins++;
-      else draws++;
-    });
-    
-    return { home_wins, draws, away_wins };
-  } catch (error) {
-    return { home_wins: 0, draws: 0, away_wins: 0 };
-  }
-}
-
 // ==================== ADVANCED PREDICTION ALGORITHM ====================
 
 async function calculateAdvancedPrediction(match) {
@@ -747,8 +711,6 @@ async function calculateAdvancedPrediction(match) {
           trend: getTrend(homeProb, prevPrediction?.winner_prob?.home?.value),
           change: prevPrediction ? homeProb - prevPrediction.winner_prob.home.value : 0
         },
-// CONTINUATION FROM PREVIOUS FILE...
-
         draw: {
           value: drawProb,
           trend: getTrend(drawProb, prevPrediction?.winner_prob?.draw?.value),
@@ -813,7 +775,7 @@ async function calculateAdvancedPrediction(match) {
       context_score: Math.round(contextScore),
       
       red_card_impact: redCardImpact,
-      penalty_situation: false, // Would need event data from API
+      penalty_situation: false,
       
       prediction_version: (prevPrediction?.prediction_version || 0) + 1,
       last_updated: new Date()
@@ -827,7 +789,7 @@ async function calculateAdvancedPrediction(match) {
   }
 }
 
-// ==================== FETCH MATCHES ====================
+// ==================== FETCH & UPDATE FUNCTIONS ====================
 
 async function fetchMatches() {
   console.log('\n🔄 ============ FETCHING MATCHES ============');
@@ -848,7 +810,7 @@ async function fetchMatches() {
       const data = await apiCall(
         `https://v3.football.api-sports.io/fixtures?date=${date}`,
         `fixtures_${date}`,
-        300000 // Cache 5 mins
+        300000
       );
       
       if (!data?.response) continue;
@@ -877,7 +839,6 @@ async function fetchMatches() {
           last_updated: new Date()
         };
         
-        // Fetch live stats for ongoing matches
         if (['1H', '2H', 'LIVE', 'HT'].includes(matchData.status)) {
           const liveStats = await fetchLiveStatistics(f.fixture.id);
           if (liveStats) matchData.live_stats = liveStats;
@@ -889,7 +850,6 @@ async function fetchMatches() {
     
     console.log(`✅ Total: ${allMatches.length}`);
     
-    // Save to DB
     for (const match of allMatches) {
       await Match.findOneAndUpdate(
         { match_id: match.match_id },
@@ -905,8 +865,6 @@ async function fetchMatches() {
     return [];
   }
 }
-
-// ==================== UPDATE LIVE MATCHES ====================
 
 async function updateLiveMatches() {
   if (!isMongoConnected) return;
@@ -929,7 +887,6 @@ async function updateLiveMatches() {
         match.last_updated = new Date();
         await match.save();
         
-        // Generate updated prediction
         const prediction = await calculateAdvancedPrediction(match);
         if (prediction) {
           await Prediction.findOneAndUpdate(
@@ -938,7 +895,6 @@ async function updateLiveMatches() {
             { upsert: true, new: true }
           );
           
-          // Update latest predictions for polling
           updateLatestPredictions(prediction);
         }
       }
@@ -949,8 +905,6 @@ async function updateLiveMatches() {
     console.error('❌ Live update error:', error.message);
   }
 }
-
-// ==================== CLEANUP ====================
 
 async function cleanupFinished() {
   if (!isMongoConnected) return;
@@ -1024,25 +978,6 @@ app.get('/api/predictions', async (req, res) => {
   }
 });
 
-app.get('/api/predictions/high-confidence', async (req, res) => {
-  try {
-    const predictions = await Prediction.find({
-      confidence_score: { $gte: 80 }
-    })
-      .sort({ confidence_score: -1 })
-      .limit(50);
-    
-    res.json({
-      success: true,
-      count: predictions.length,
-      data: predictions
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// Latest updates endpoint (for polling)
 app.get('/api/latest-updates', (req, res) => {
   res.json({
     success: true,
@@ -1108,22 +1043,15 @@ setTimeout(async () => {
   }
 }, 10000);
 
-// Live updates every 2 minutes
 setInterval(updateLiveMatches, 2 * 60 * 1000);
-
-// Fetch new matches every 15 minutes
 setInterval(async () => {
   if (isMongoConnected) await fetchMatches();
 }, 15 * 60 * 1000);
-
-// Cleanup every hour
 setInterval(cleanupFinished, 60 * 60 * 1000);
-
-// Clear old cache every 10 minutes
 setInterval(() => {
   const now = Date.now();
   for (const [key, value] of statsCache.entries()) {
-    if (now - value.timestamp > 600000) { // 10 mins
+    if (now - value.timestamp > 600000) {
       statsCache.delete(key);
     }
   }
@@ -1155,7 +1083,3 @@ process.on('SIGINT', async () => {
   if (isMongoConnected) await mongoose.connection.close();
   process.exit(0);
 });
-
-
-
-
