@@ -1,186 +1,58 @@
 
 
 
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚽ Live Football Predictions - Real-time AI Analysis</title>
+    <title>⚽ Live Football Predictions - Auto Updates</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #7e22ce 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: #333;
             min-height: 100vh;
-            overflow-x: hidden;
         }
 
         .header {
-            background: rgba(255, 255, 255, 0.98);
-            padding: 20px 30px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             position: sticky;
             top: 0;
             z-index: 1000;
-            backdrop-filter: blur(10px);
-        }
-
-        .header-content {
-            max-width: 1600px;
-            margin: 0 auto;
-        }
-
-        .title-row {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 15px;
-            margin-bottom: 15px;
         }
 
         .header h1 {
-            font-size: 2.2rem;
-            background: linear-gradient(135deg, #1e3c72, #7e22ce);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            font-weight: 800;
+            text-align: center;
+            color: #667eea;
+            font-size: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
         }
 
         .live-indicator {
-            width: 16px;
-            height: 16px;
-            background: #ef4444;
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            background: #ff4444;
             border-radius: 50%;
             animation: pulse 2s infinite;
-            box-shadow: 0 0 10px rgba(239, 68, 68, 0.7);
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 10px rgba(239, 68, 68, 0.7); }
-            50% { opacity: 0.6; transform: scale(1.15); box-shadow: 0 0 20px rgba(239, 68, 68, 1); }
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.1); }
         }
 
-        .time-display {
-            text-align: center;
-            color: #7e22ce;
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 15px;
-        }
-
-        .stats-bar {
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
-
-        .stat-item {
-            background: linear-gradient(135deg, #1e3c72, #2a5298);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 12px;
-            font-size: 0.95rem;
-            font-weight: 600;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .stat-value {
-            background: rgba(255,255,255,0.2);
-            padding: 4px 10px;
-            border-radius: 8px;
-            font-weight: 700;
-        }
-
-        .notification-banner {
-            background: linear-gradient(135deg, #10b981, #059669);
-            color: white;
-            padding: 12px 20px;
-            text-align: center;
-            font-weight: 600;
-            animation: slideDown 0.5s ease-out;
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 2000;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        }
-
-        .notification-banner.show {
-            display: block;
-        }
-
-        @keyframes slideDown {
-            from { transform: translateY(-100%); }
-            to { transform: translateY(0); }
-        }
-
-        .container {
-            max-width: 1600px;
-            margin: 0 auto;
-            padding: 30px 20px;
-        }
-
-        .tab-buttons {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin-bottom: 30px;
-            flex-wrap: wrap;
-        }
-
-        .tab-btn {
-            background: white;
-            border: 3px solid transparent;
-            padding: 15px 35px;
-            border-radius: 12px;
-            font-size: 1.1rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            color: #1e3c72;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-
-        .tab-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
-        }
-
-        .tab-btn.active {
-            background: linear-gradient(135deg, #1e3c72, #7e22ce);
-            color: white;
-            border-color: white;
-        }
-
-        .new-badge {
-            position: absolute;
-            top: -8px;
-            right: -8px;
-            background: #ef4444;
-            color: white;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            font-weight: 800;
-            animation: blink 2s infinite;
-            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.5);
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         @keyframes blink {
@@ -188,556 +60,501 @@
             25%, 75% { opacity: 0.3; }
         }
 
+        .pkt-time {
+            text-align: center;
+            color: #764ba2;
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .stats-bar {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+
+        .connection-status {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .connected { background: #4CAF50; color: white; }
+        .disconnected { background: #ff4444; color: white; }
+
+        .button-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .tab-button {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            position: relative;
+        }
+
+        .tab-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+        }
+
+        .tab-button.active {
+            background: linear-gradient(135deg, #56ab2f, #a8e063);
+            transform: scale(1.05);
+        }
+
+        .new-badge {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background: #ff4444;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            animation: blink 2s infinite;
+        }
+
+        .container {
+            padding: 20px;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+
         .section {
             background: white;
-            border-radius: 16px;
-            padding: 25px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-            display: none;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            max-height: calc(100vh - 320px);
+            overflow-y: auto;
         }
 
-        .section.active {
-            display: block;
-            animation: fadeIn 0.5s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .section-header {
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 25px;
-            padding-bottom: 15px;
-            border-bottom: 3px solid #e5e7eb;
-        }
-
-        .section-title {
-            font-size: 1.8rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, #1e3c72, #7e22ce);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
         }
 
         .section-badge {
-            background: linear-gradient(135deg, #ef4444, #dc2626);
+            background: #ff4444;
             color: white;
-            padding: 8px 18px;
+            padding: 5px 12px;
             border-radius: 20px;
-            font-weight: 700;
-            font-size: 0.95rem;
-            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+            font-size: 0.8rem;
         }
 
-        .matches-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
-            gap: 20px;
-        }
-
-        .match-card {
-            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-            border-radius: 12px;
-            padding: 20px;
-            border-left: 5px solid #1e3c72;
-            transition: all 0.3s ease;
+        .match-card, .prediction-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 5px solid #667eea;
+            transition: all 0.3s;
             position: relative;
-            overflow: hidden;
+            animation: slideIn 0.5s ease-out;
         }
 
-        .match-card::before {
-            content: '';
+        .match-card:hover, .prediction-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+        }
+
+        .prediction-card {
+            border-left-color: #764ba2;
+            background: white;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .new-card-badge {
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, #1e3c72, #7e22ce);
-            transform: scaleX(0);
-            transition: transform 0.3s ease;
-        }
-
-        .match-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 12px 30px rgba(0,0,0,0.15);
-        }
-
-        .match-card:hover::before {
-            transform: scaleX(1);
-        }
-
-        .match-card.live {
-            border-left-color: #ef4444;
-            animation: liveGlow 3s infinite;
-        }
-
-        @keyframes liveGlow {
-            0%, 100% { box-shadow: 0 4px 20px rgba(239, 68, 68, 0.3); }
-            50% { box-shadow: 0 8px 30px rgba(239, 68, 68, 0.6); }
+            top: 10px;
+            right: 10px;
+            background: #ff4444;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            animation: blink 3s infinite;
         }
 
         .match-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
         }
 
         .league-badge {
-            background: #1e3c72;
+            background: #667eea;
             color: white;
-            padding: 6px 12px;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-weight: 700;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.75rem;
+            font-weight: bold;
         }
 
         .status-badge {
-            padding: 6px 14px;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-weight: 700;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            font-weight: bold;
         }
 
         .status-live {
-            background: #ef4444;
+            background: #ff4444;
             color: white;
             animation: pulse 2s infinite;
         }
 
-        .status-ns {
-            background: #10b981;
-            color: white;
-        }
-
-        .status-ht {
-            background: #f59e0b;
-            color: white;
-        }
-
-        .status-ft {
-            background: #6b7280;
-            color: white;
-        }
+        .status-ns { background: #4CAF50; color: white; }
+        .status-ft { background: #666; color: white; }
+        .status-ht { background: #ff9800; color: white; }
 
         .countdown-timer {
-            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+            background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
             color: white;
-            padding: 10px 15px;
-            border-radius: 10px;
-            text-align: center;
-            font-weight: 700;
-            font-size: 1rem;
-            margin: 10px 0;
-            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+            padding: 5px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-top: 5px;
+            display: inline-block;
         }
 
-        .countdown-timer .time-label {
-            font-size: 0.8rem;
-            opacity: 0.9;
-            margin-bottom: 4px;
-        }
-
-        .teams-container {
+        .teams {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin: 20px 0;
-        }
-
-        .team {
-            flex: 1;
-            text-align: center;
-            font-weight: 700;
-            font-size: 1.15rem;
-            color: #1e3c72;
-        }
-
-        .vs-divider {
-            padding: 0 20px;
-            color: #7e22ce;
-            font-weight: 800;
+            margin: 15px 0;
             font-size: 1.1rem;
+            font-weight: bold;
         }
 
-        .score-display {
+        .team { flex: 1; text-align: center; }
+        .vs { color: #667eea; font-weight: bold; padding: 0 15px; }
+
+        .score {
             display: flex;
             justify-content: center;
-            gap: 15px;
-            font-size: 2.2rem;
-            font-weight: 800;
-            color: #ef4444;
-            margin: 15px 0;
-        }
-
-        .prediction-card {
-            background: white;
-            border-radius: 12px;
-            padding: 25px;
-            margin-bottom: 20px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
-            border-left: 5px solid #7e22ce;
-            transition: all 0.3s ease;
-            position: relative;
-        }
-
-        .prediction-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 12px 35px rgba(0,0,0,0.15);
-        }
-
-        .prediction-card.new-prediction {
-            animation: newPredictionGlow 2s ease-out;
-        }
-
-        @keyframes newPredictionGlow {
-            0% { box-shadow: 0 0 0 0 rgba(126, 34, 206, 0.7); }
-            50% { box-shadow: 0 0 30px 10px rgba(126, 34, 206, 0.4); }
-            100% { box-shadow: 0 8px 24px rgba(0,0,0,0.1); }
-        }
-
-        .new-pred-badge {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            background: #ef4444;
-            color: white;
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            font-weight: 800;
-            animation: blink 2s infinite;
-        }
-
-        .confidence-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 15px;
-        }
-
-        .confidence-badge {
-            background: linear-gradient(135deg, #10b981, #059669);
-            color: white;
-            padding: 8px 16px;
-            border-radius: 10px;
-            font-weight: 700;
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .confidence-badge.medium {
-            background: linear-gradient(135deg, #f59e0b, #d97706);
-        }
-
-        .confidence-badge.low {
-            background: linear-gradient(135deg, #ef4444, #dc2626);
-        }
-
-        .prob-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            margin: 20px 0;
-        }
-
-        .prob-item {
-            background: linear-gradient(135deg, #f8fafc, #e2e8f0);
-            padding: 15px;
-            border-radius: 10px;
-            text-align: center;
-            transition: all 0.3s ease;
-        }
-
-        .prob-item:hover {
-            transform: scale(1.05);
-        }
-
-        .prob-item.home {
-            background: linear-gradient(135deg, #10b981, #059669);
-            color: white;
-        }
-
-        .prob-item.draw {
-            background: linear-gradient(135deg, #f59e0b, #d97706);
-            color: white;
-        }
-
-        .prob-item.away {
-            background: linear-gradient(135deg, #ef4444, #dc2626);
-            color: white;
-        }
-
-        .prob-label {
-            font-size: 0.85rem;
-            opacity: 0.9;
-            margin-bottom: 8px;
-            font-weight: 600;
-        }
-
-        .prob-value {
+            gap: 10px;
             font-size: 1.8rem;
-            font-weight: 800;
+            font-weight: bold;
+            color: #ff4444;
+            margin: 10px 0;
         }
 
-        .prob-trend {
+        .live-stats {
+            background: #f5f7fa;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        .live-stats h4 {
+            color: #667eea;
+            margin-bottom: 8px;
             font-size: 0.9rem;
-            margin-top: 4px;
         }
 
-        .xg-container {
-            background: linear-gradient(135deg, #ede9fe, #ddd6fe);
-            padding: 15px;
-            border-radius: 10px;
-            margin: 15px 0;
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 5px 0;
+            font-size: 0.85rem;
         }
 
-        .xg-item {
-            text-align: center;
+        .stat-bar-container {
+            flex: 1;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            margin: 0 10px;
+            position: relative;
+            overflow: hidden;
         }
 
-        .xg-label {
-            font-size: 0.8rem;
-            color: #6b7280;
-            margin-bottom: 6px;
-            font-weight: 600;
+        .stat-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 4px;
+            transition: width 0.5s ease;
         }
 
-        .xg-value {
-            font-size: 1.5rem;
-            font-weight: 800;
-            color: #7e22ce;
-        }
-
-        .markets-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        .prob-bars {
+            display: flex;
             gap: 10px;
             margin: 15px 0;
         }
 
-        .market-item {
-            background: #f8fafc;
+        .prob-bar { flex: 1; text-align: center; }
+
+        .prob-label {
+            font-size: 0.8rem;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .prob-value {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
             padding: 12px;
             border-radius: 8px;
+            font-weight: bold;
+            font-size: 1.3rem;
+            transition: all 0.3s;
+        }
+
+        .prob-value:hover { transform: scale(1.05); }
+        .prob-value.home { background: linear-gradient(135deg, #56ab2f, #a8e063); }
+        .prob-value.draw { background: linear-gradient(135deg, #ffd89b, #19547b); }
+        .prob-value.away { background: linear-gradient(135deg, #f857a6, #ff5858); }
+
+        .xg-display {
+            display: flex;
+            justify-content: space-around;
+            background: #f5f7fa;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 12px 0;
+        }
+
+        .xg-item { text-align: center; }
+
+        .xg-label {
+            color: #666;
+            font-size: 0.75rem;
+            margin-bottom: 5px;
+        }
+
+        .xg-value {
+            font-weight: bold;
+            color: #764ba2;
+            font-size: 1.2rem;
+        }
+
+        .markets {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .market-item {
+            background: #f5f7fa;
+            padding: 10px;
+            border-radius: 5px;
             text-align: center;
-            transition: all 0.3s ease;
-            border: 2px solid transparent;
+            font-size: 0.85rem;
+            transition: all 0.3s;
         }
 
         .market-item:hover {
-            background: #e2e8f0;
+            background: #e8eaf0;
             transform: scale(1.05);
         }
 
-        .market-item.strong {
-            background: linear-gradient(135deg, #10b981, #059669);
-            color: white;
-            border-color: #065f46;
-        }
-
         .market-label {
+            color: #666;
+            margin-bottom: 5px;
             font-size: 0.75rem;
-            margin-bottom: 6px;
-            font-weight: 600;
-            opacity: 0.8;
         }
 
         .market-value {
-            font-size: 1.2rem;
-            font-weight: 800;
+            font-weight: bold;
+            color: #667eea;
+            font-size: 1rem;
         }
 
-        .insights-box {
-            background: linear-gradient(135deg, #fef3c7, #fde68a);
-            padding: 15px;
-            border-radius: 10px;
-            margin: 15px 0;
-            border-left: 4px solid #f59e0b;
-        }
-
-        .insights-title {
-            font-weight: 700;
-            margin-bottom: 10px;
-            color: #92400e;
-            font-size: 0.95rem;
+        .live-insights {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
         }
 
         .insight-item {
-            padding: 8px 0;
-            color: #78350f;
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            gap: 8px;
+            color: #856404;
+            font-size: 0.85rem;
+            margin: 5px 0;
         }
 
-        .loading-screen {
+        .value-bets {
+            background: linear-gradient(135deg, #56ab2f, #a8e063);
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 12px;
+        }
+
+        .value-bets h4 {
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .value-bet-item {
+            background: rgba(255,255,255,0.2);
+            padding: 6px 10px;
+            border-radius: 5px;
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            animation: slideIn 0.5s ease-out;
+            z-index: 2000;
+            max-width: 400px;
+        }
+
+        .loading {
             text-align: center;
-            padding: 60px 20px;
+            padding: 40px;
+            color: #667eea;
+            font-size: 1.2rem;
         }
 
         .spinner {
-            width: 60px;
-            height: 60px;
-            border: 6px solid #e5e7eb;
-            border-top-color: #7e22ce;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
             border-radius: 50%;
+            width: 50px;
+            height: 50px;
             animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
+            margin: 20px auto;
         }
 
         @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .loading-text {
-            font-size: 1.2rem;
-            color: #6b7280;
-            font-weight: 600;
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         .empty-state {
             text-align: center;
-            padding: 60px 20px;
-            color: #9ca3af;
+            padding: 40px;
+            color: #999;
         }
 
-        .empty-state-icon {
-            font-size: 4rem;
-            margin-bottom: 20px;
-        }
-
-        .empty-state-text {
-            font-size: 1.3rem;
-            font-weight: 600;
-        }
-
-        .toast-notification {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            background: linear-gradient(135deg, #7e22ce, #6b21a8);
-            color: white;
-            padding: 15px 25px;
-            border-radius: 12px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-            transform: translateX(400px);
-            transition: transform 0.4s ease;
-            z-index: 3000;
-            font-weight: 600;
-            max-width: 350px;
-        }
-
-        .toast-notification.show {
-            transform: translateX(0);
-        }
+        .hidden { display: none; }
 
         @media (max-width: 768px) {
-            .header h1 { font-size: 1.6rem; }
-            .matches-grid { grid-template-columns: 1fr; }
-            .prob-grid { grid-template-columns: 1fr; }
-            .tab-btn { padding: 12px 24px; font-size: 1rem; }
+            .header h1 { font-size: 1.5rem; }
+            .tab-button { padding: 12px 25px; font-size: 1rem; }
+            .toast { right: 10px; left: 10px; max-width: none; }
         }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: #667eea; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #764ba2; }
     </style>
 </head>
 <body>
-    <!-- Notification Banner -->
-    <div class="notification-banner" id="notificationBanner"></div>
-
-    <!-- Toast Notification -->
-    <div class="toast-notification" id="toastNotification"></div>
-
-    <!-- Header -->
     <div class="header">
-        <div class="header-content">
-            <div class="title-row">
-                <h1>⚽ Live Football Predictions</h1>
-                <div class="live-indicator"></div>
-            </div>
-            <div class="time-display" id="timeDisplay">Loading...</div>
-            <div class="stats-bar">
-                <div class="stat-item">
-                    📊 Matches <span class="stat-value" id="matchCount">0</span>
-                </div>
-                <div class="stat-item">
-                    🎯 Predictions <span class="stat-value" id="predCount">0</span>
-                </div>
-                <div class="stat-item">
-                    🔄 Updated <span class="stat-value" id="lastUpdate">--:--</span>
-                </div>
+        <h1>
+            ⚽ Live Football Predictions
+            <span class="live-indicator"></span>
+        </h1>
+        <div class="pkt-time" id="pktTime">Pakistan Time: Loading...</div>
+        <div class="stats-bar">
+            <div class="stat-item">📊 Matches: <span id="matchCount">0</span></div>
+            <div class="stat-item">🎯 Predictions: <span id="predCount">0</span></div>
+            <div class="stat-item">🔄 Last Update: <span id="lastUpdate">--:--:--</span></div>
+            <div class="stat-item">
+                <span id="connectionStatus" class="connection-status disconnected">● Disconnected</span>
             </div>
         </div>
     </div>
 
-    <!-- Tab Buttons -->
-    <div class="container">
-        <div class="tab-buttons">
-            <button class="tab-btn active" onclick="showTab('matches')">
-                📅 Live Matches
-            </button>
-            <button class="tab-btn" onclick="showTab('predictions')" id="predTab">
-                🎯 AI Predictions
-                <span class="new-badge hidden" id="newBadge">NEW!</span>
-            </button>
-        </div>
+    <div class="button-container">
+        <button class="tab-button active" id="btnMatches" onclick="showMatches()">
+            📅 Live Matches
+        </button>
+        <button class="tab-button" id="btnPredictions" onclick="showPredictions()">
+            🎯 AI Predictions
+            <span class="new-badge hidden" id="newBadge">NEW!</span>
+        </button>
+    </div>
 
-        <!-- Matches Section -->
-        <div class="section active" id="matchesSection">
-            <div class="section-header">
-                <div class="section-title">📅 Today's Matches</div>
-                <div class="section-badge" id="matchesBadge">0</div>
-            </div>
+    <div class="container">
+        <div class="section" id="matchesSection">
+            <h2>
+                📅 Today's Matches
+                <span class="section-badge" id="matchBadge">0</span>
+            </h2>
             <div id="matchesContainer">
-                <div class="loading-screen">
+                <div class="loading">
                     <div class="spinner"></div>
-                    <div class="loading-text">Loading live matches...</div>
+                    Loading matches...
                 </div>
             </div>
         </div>
 
-        <!-- Predictions Section -->
-        <div class="section" id="predictionsSection">
-            <div class="section-header">
-                <div class="section-title">🎯 AI Predictions</div>
-                <div class="section-badge" id="predictionsBadge">0</div>
-            </div>
+        <div class="section hidden" id="predictionsSection">
+            <h2>
+                🎯 AI Predictions
+                <span class="section-badge" id="predBadge">0</span>
+            </h2>
             <div id="predictionsContainer">
-                <div class="loading-screen">
+                <div class="loading">
                     <div class="spinner"></div>
-                    <div class="loading-text">Generating predictions...</div>
+                    Loading predictions...
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // State Management
-        const state = {
-            matches: [],
-            predictions: [],
-            lastPredictionCount: 0,
-            newPredictionIds: new Set(),
-            countdownIntervals: {},
-            isFirstLoad: true
-        };
+        let eventSource = null;
+        let reconnectAttempts = 0;
+        const MAX_RECONNECT_ATTEMPTS = 5;
 
-        // Update Pakistan Time
-        function updateTime() {
+        // Update Pakistan time
+        function updatePakistanTime() {
             const now = new Date();
-            const pktTime = now.toLocaleString('en-PK', {
+            const pktTime = now.toLocaleString('en-PK', { 
                 timeZone: 'Asia/Karachi',
                 weekday: 'long',
                 year: 'numeric',
@@ -748,146 +565,250 @@
                 second: '2-digit',
                 hour12: true
             });
-            document.getElementById('timeDisplay').textContent = `🇵🇰 ${pktTime}`;
+            document.getElementById('pktTime').textContent = `🇵🇰 ${pktTime}`;
             
-            const updateTime = now.toLocaleTimeString('en-PK', {
-                timeZone: 'Asia/Karachi',
+            const updateTime = now.toLocaleTimeString('en-GB', {
                 hour: '2-digit',
-                minute: '2-digit'
+                minute: '2-digit',
+                second: '2-digit'
             });
             document.getElementById('lastUpdate').textContent = updateTime;
         }
 
-        // Show Toast Notification
-        function showToast(message) {
-            const toast = document.getElementById('toastNotification');
+        // Show toast notification
+        function showToast(message, duration = 3000) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
             toast.textContent = message;
-            toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 4000);
-        }
-
-        // Show Banner Notification
-        function showBanner(message) {
-            const banner = document.getElementById('notificationBanner');
-            banner.textContent = message;
-            banner.classList.add('show');
-            setTimeout(() => banner.classList.remove('show'), 5000);
-        }
-
-        // Tab Switching
-        function showTab(tab) {
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.body.appendChild(toast);
             
-            if (tab === 'matches') {
-                document.getElementById('matchesSection').classList.add('active');
-                event.target.classList.add('active');
-            } else {
-                document.getElementById('predictionsSection').classList.add('active');
-                document.getElementById('predTab').classList.add('active');
-                document.getElementById('newBadge').classList.add('hidden');
-                state.newPredictionIds.clear();
-            }
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.5s ease-out reverse';
+                setTimeout(() => toast.remove(), 500);
+            }, duration);
         }
 
-        // Get Status Badge HTML
-        function getStatusBadge(status) {
-            const statusMap = {
-                'NS': { class: 'status-ns', text: '⏱️ Not Started', icon: '⏱️' },
-                'LIVE': { class: 'status-live', text: '🔴 LIVE', icon: '🔴' },
-                '1H': { class: 'status-live', text: '🔴 1st Half', icon: '🔴' },
-                '2H': { class: 'status-live', text: '🔴 2nd Half', icon: '🔴' },
-                'HT': { class: 'status-ht', text: '⏸️ Half Time', icon: '⏸️' },
-                'FT': { class: 'status-ft', text: '✅ Full Time', icon: '✅' },
-                'ET': { class: 'status-live', text: '🔴 Extra Time', icon: '🔴' }
-            };
-            const s = statusMap[status] || { class: 'status-ns', text: status, icon: '' };
-            return `<span class="status-badge ${s.class}">${s.text}</span>`;
-        }
-
-        // Calculate Countdown
+        // Calculate countdown
         function getCountdown(matchDate) {
             const now = new Date();
             const match = new Date(matchDate);
             const diff = match - now;
             
-            if (diff <= 0) return null;
+            if (diff < 0) return null;
             
             const days = Math.floor(diff / (1000 * 60 * 60 * 24));
             const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
             const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
             
-            let countdown = '';
-            if (days > 0) countdown += `${days}d `;
-            if (hours > 0 || days > 0) countdown += `${hours}h `;
-            countdown += `${minutes}m ${seconds}s`;
-            
-            return countdown;
+            if (days > 0) return `⏳ ${days}d ${hours}h`;
+            if (hours > 0) return `⏳ ${hours}h ${minutes}m`;
+            if (minutes > 0) return `⏳ ${minutes} min`;
+            return `⏳ Starting soon!`;
         }
 
-        // Update Countdowns
-        function updateCountdowns() {
-            state.matches.forEach(match => {
-                if (match.status === 'NS') {
-                    const countdown = getCountdown(match.match_date);
-                    const element = document.getElementById(`countdown-${match.match_id}`);
-                    if (element && countdown) {
-                        element.querySelector('.time-value').textContent = countdown;
-                    }
-                }
-            });
+        // Show/Hide sections
+        function showMatches() {
+            document.getElementById('matchesSection').classList.remove('hidden');
+            document.getElementById('predictionsSection').classList.add('hidden');
+            document.getElementById('btnMatches').classList.add('active');
+            document.getElementById('btnPredictions').classList.remove('active');
         }
 
-        // Render Matches
+        function showPredictions() {
+            document.getElementById('matchesSection').classList.add('hidden');
+            document.getElementById('predictionsSection').classList.remove('hidden');
+            document.getElementById('btnMatches').classList.remove('active');
+            document.getElementById('btnPredictions').classList.add('active');
+            document.getElementById('newBadge').classList.add('hidden');
+        }
+
+        // Get status badge
+        function getStatusBadge(status) {
+            const statusMap = {
+                'NS': { class: 'status-ns', text: 'Not Started' },
+                'LIVE': { class: 'status-live', text: '🔴 LIVE' },
+                '1H': { class: 'status-live', text: '🔴 1st Half' },
+                '2H': { class: 'status-live', text: '🔴 2nd Half' },
+                'HT': { class: 'status-ht', text: 'Half Time' },
+                'FT': { class: 'status-ft', text: 'Full Time' }
+            };
+            const s = statusMap[status] || { class: 'status-ns', text: status };
+            return `<span class="status-badge ${s.class}">${s.text}</span>`;
+        }
+
+        // Render live stats
+        function renderLiveStats(stats) {
+            if (!stats) return '';
+            
+            return `
+                <div class="live-stats">
+                    <h4>📊 Live Statistics</h4>
+                    <div class="stat-row">
+                        <span>${stats.possession?.home || 0}%</span>
+                        <div class="stat-bar-container">
+                            <div class="stat-fill" style="width: ${stats.possession?.home || 0}%"></div>
+                        </div>
+                        <span>${stats.possession?.away || 0}%</span>
+                    </div>
+                    <div style="text-align:center; font-size:0.75rem; color:#666; margin-top:5px;">
+                        Possession
+                    </div>
+                    <div class="stat-row" style="margin-top:10px;">
+                        <span>${stats.shots_on_target?.home || 0}</span>
+                        <span style="font-size:0.75rem; color:#666;">Shots on Target</span>
+                        <span>${stats.shots_on_target?.away || 0}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span>${stats.corners?.home || 0}</span>
+                        <span style="font-size:0.75rem; color:#666;">Corners</span>
+                        <span>${stats.corners?.away || 0}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Render matches
         function renderMatches(matches) {
             const container = document.getElementById('matchesContainer');
             
             if (!matches || matches.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">📭</div>
-                        <div class="empty-state-text">No matches available right now</div>
-                    </div>
-                `;
-                document.getElementById('matchesBadge').textContent = '0';
+                container.innerHTML = '<div class="empty-state">📭 No matches available right now.</div>';
+                document.getElementById('matchBadge').textContent = '0';
                 document.getElementById('matchCount').textContent = '0';
                 return;
             }
 
-            state.matches = matches;
-            
-            const html = matches.map(match => {
-                const isLive = ['LIVE', '1H', '2H', 'HT', 'ET'].includes(match.status);
+            container.innerHTML = matches.map(match => {
+                const isLive = ['LIVE', '1H', '2H', 'HT'].includes(match.status);
                 const countdown = match.status === 'NS' ? getCountdown(match.match_date) : null;
                 
                 return `
-                    <div class="match-card ${isLive ? 'live' : ''}">
-                        <div class="match-header">
-                            <span class="league-badge">${match.league || 'Unknown League'}</span>
-                            ${getStatusBadge(match.status)}
+                <div class="match-card">
+                    <div class="match-header">
+                        <span class="league-badge">${match.league || 'Unknown'}</span>
+                        ${getStatusBadge(match.status)}
+                    </div>
+                    <div style="color:#666; font-size:0.9rem; margin:5px 0;">
+                        🕐 ${match.match_time_pkt || 'Time TBA'}
+                        ${countdown ? `<br><span class="countdown-timer">${countdown}</span>` : ''}
+                    </div>
+                    <div class="teams">
+                        <div class="team">${match.home_team}</div>
+                        <div class="vs">VS</div>
+                        <div class="team">${match.away_team}</div>
+                    </div>
+                    ${isLive ? `
+                        <div class="score">
+                            <span>${match.home_score || 0}</span>
+                            <span>-</span>
+                            <span>${match.away_score || 0}</span>
                         </div>
-                        
-                        ${countdown ? `
-                            <div class="countdown-timer" id="countdown-${match.match_id}">
-                                <div class="time-label">⏰ Starts in</div>
-                                <div class="time-value">${countdown}</div>
+                        ${match.current_minute ? `<div style="text-align:center; color:#ff4444; font-weight:bold;">⏱️ ${match.current_minute}'</div>` : ''}
+                        ${renderLiveStats(match.live_stats)}
+                    ` : ''}
+                    ${match.venue ? `<div style="text-align:center; color:#666; font-size:0.8rem; margin-top:5px;">📍 ${match.venue}</div>` : ''}
+                </div>
+            `}).join('');
+
+            document.getElementById('matchCount').textContent = matches.length;
+            document.getElementById('matchBadge').textContent = matches.length;
+        }
+
+        // Render predictions
+        function renderPredictions(predictions) {
+            const container = document.getElementById('predictionsContainer');
+            
+            if (!predictions || predictions.length === 0) {
+                container.innerHTML = '<div class="empty-state">🤖 No predictions available yet.</div>';
+                document.getElementById('predBadge').textContent = '0';
+                document.getElementById('predCount').textContent = '0';
+                return;
+            }
+
+            container.innerHTML = predictions.map(pred => `
+                <div class="prediction-card">
+                    <div class="match-header">
+                        <span class="league-badge">${pred.league || 'Unknown'}</span>
+                        <span style="background: linear-gradient(135deg, #ffd89b, #19547b); color: white; padding: 5px 12px; border-radius: 5px; font-size: 0.8rem;">
+                            ⭐ ${pred.confidence_score || 0}% Confidence
+                        </span>
+                    </div>
+                    <div class="teams">
+                        <div class="team">${pred.home_team}</div>
+                        <div class="vs">VS</div>
+                        <div class="team">${pred.away_team}</div>
+                    </div>
+
+                    <div class="prob-bars">
+                        <div class="prob-bar">
+                            <div class="prob-label">Home Win</div>
+                            <div class="prob-value home">
+                                ${pred.winner_prob?.home?.value || 0}%
+                                <span style="font-size:0.8rem;">${pred.winner_prob?.home?.trend || ''}</span>
                             </div>
-                        ` : ''}
-                        
-                        <div class="teams-container">
-                            <div class="team">${match.home_team}</div>
-                            <div class="vs-divider">VS</div>
-                            <div class="team">${match.away_team}</div>
                         </div>
-                        
-                        ${isLive || match.status === 'FT' ? `
-                            <div class="score-display">
-                                <span>${match.home_score || 0}</span>
-                                <span>-</span>
-                                <span>${match.away_score || 0}</span>
+                        <div class="prob-bar">
+                            <div class="prob-label">Draw</div>
+                            <div class="prob-value draw">
+                                ${pred.winner_prob?.draw?.value || 0}%
+                                <span style="font-size:0.8rem;">${pred.winner_prob?.draw?.trend || ''}</span>
                             </div>
-                            ${match.current_minute ? `
-                                <div style="text-align:center; color:#ef4444; font-weight:700; font-size:1.1rem;">
-                                    ⚽ ${match.current_minute}'
-                                </div>
+                        </div>
+                        <div class="prob-bar">
+                            <div class="prob-label">Away Win</div>
+                            <div class="prob-value away">
+                                ${pred.winner_prob?.away?.value || 0}%
+                                <span style="font-size:0.8rem;">${pred.winner_prob?.away?.trend || ''}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="xg-display">
+                        <div class="xg-item">
+                            <div class="xg-label">Home xG</div>
+                            <div class="xg-value">${pred.xG?.home || 0}</div>
+                        </div>
+                        <div class="xg-item">
+                            <div class="xg-label">Total xG</div>
+                            <div class="xg-value">${pred.xG?.total || 0}</div>
+                        </div>
+                        <div class="xg-item">
+                            <div class="xg-label">Away xG</div>
+                            <div class="xg-value">${pred.xG?.away || 0}</div>
+                        </div>
+                    </div>
+
+                    <div class="markets">
+                        <div class="market-item">
+                            <div class="market-label">BTTS</div>
+                            <div class="market-value">${pred.btts_prob || 0}%</div>
+                        </div>
+                        <div class="market-item">
+                            <div class="market-label">Over 2.5</div>
+                            <div class="market-value">${pred.over_under?.['2.5'] ? Math.round(pred.over_under['2.5']) : 0}%</div>
+                        </div>
+                        <div class="market-item">
+                            <div class="market-label">Over 3.5</div>
+                            <div class="market-value">${pred.over_under?.['3.5'] ? Math.round(pred.over_under['3.5']) : 0}%</div>
+                        </div>
+                        <div class="market-item">
+                            <div class="market-label">Score</div>
+                            <div class="market-value">${pred.most_likely_score || 'N/A'}</div>
+                        </div>
+                    </div>
+
+                    ${pred.live_insights && pred.live_insights.length > 0 ? `
+                        <div class="live-insights">
+                            ${pred.live_insights.map(insight => `
+                                <div class="insight-item">${insight}</div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+
+                    ${pred.value_bets && pred.value_bets.length > 0 ? `
+                        <div class="value-bets">
+                            <h4>💰 Value Bets</h4>
+                            ${pred.value_bets.map(bet => `
+                                <div class="value-bet-item">
+                                    <span>${bet.market}</span>
+                                    <span><strong>${bet.probability}%</strong> - ${bet.recommendation}</span>
