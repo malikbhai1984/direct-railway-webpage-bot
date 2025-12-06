@@ -1,6 +1,10 @@
 
 
 
+
+
+// api se live matches fetch ker rha hy...or live predion kare ga..
+
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
@@ -13,19 +17,12 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-const API_KEY = 'fdab0eef5743173c30f9810bef3a6742';
+// API Key
+const API_KEY = process.env.API_FOOTBALL_KEY || 'fdab0eef5743173c30f9810bef3a6742';
 
 const TOP_LEAGUES = {
-  39: 'Premier League', 
-  140: 'La Liga', 
-  135: 'Serie A', 
-  78: 'Bundesliga',
-  61: 'Ligue 1', 
-  94: 'Primeira Liga', 
-  88: 'Eredivisie', 
-  203: 'Super Lig',
-  2: 'Champions League',
-  3: 'Europa League'
+  39: 'Premier League', 140: 'La Liga', 135: 'Serie A', 78: 'Bundesliga',
+  61: 'Ligue 1', 94: 'Primeira Liga', 88: 'Eredivisie', 203: 'Super Lig'
 };
 
 let apiCalls = 0;
@@ -33,20 +30,25 @@ const API_LIMIT = 100;
 const cache = new Map();
 let sseClients = [];
 
+// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
 
-const MONGO_URI = 'mongodb://localhost:27017/football-predictions';
+// MongoDB
+const MONGO_URI = process.env.MONGO_PUBLIC_URL || process.env.MONGO_URI || 
+                  'mongodb://localhost:27017/football-predictions';
 let mongoConnected = false;
 
-mongoose.connect(MONGO_URI)
-  .then(() => {
-    console.log('✅ MongoDB Connected');
-    mongoConnected = true;
-  })
-  .catch(err => console.error('❌ MongoDB:', err.message));
+mongoose.connect(MONGO_URI, {
+  serverSelectionTimeoutMS: 30000,
+  socketTimeoutMS: 45000
+}).then(() => {
+  console.log('✅ MongoDB Connected');
+  mongoConnected = true;
+}).catch(err => console.error('❌ MongoDB:', err.message));
 
+// Schemas
 const matchSchema = new mongoose.Schema({
   match_id: { type: String, required: true, unique: true },
   home_team: String,
@@ -54,12 +56,13 @@ const matchSchema = new mongoose.Schema({
   league: String,
   home_score: { type: Number, default: 0 },
   away_score: { type: Number, default: 0 },
-  status: String,
+  status: { type: String, default: 'NS' },
   match_time_pkt: String,
   match_date: Date,
   venue: String,
-  current_minute: Number,
-  live_stats: Object
+  current_minute: { type: Number, default: 0 },
+  live_stats: Object,
+  last_updated: { type: Date, default: Date.now }
 }, { timestamps: true });
 
 const predictionSchema = new mongoose.Schema({
@@ -82,16 +85,20 @@ const predictionSchema = new mongoose.Schema({
   value_bets: [Object],
   confidence_score: Number,
   confidence_level: String,
-  prediction_version: Number
+  prediction_version: Number,
+  last_updated: Date
 }, { timestamps: true });
 
 const Match = mongoose.model('Match', matchSchema);
 const Prediction = mongoose.model('Prediction', predictionSchema);
 
+// Helpers
 function convertStatus(s) {
   const map = {
-    'NS': 'NS', 'TBD': 'NS', '1H': '1H', 'HT': 'HT', 
-    '2H': '2H', 'FT': 'FT', 'LIVE': 'LIVE'
+    'NS': 'NS', 'TBD': 'NS', 'SCHEDULED': 'NS', 'TIMED': 'NS',
+    'LIVE': 'LIVE', 'IN_PLAY': 'LIVE',
+    '1H': '1H', 'HT': 'HT', '2H': '2H',
+    'FT': 'FT', 'FINISHED': 'FT'
   };
   return map[s] || 'NS';
 }
@@ -100,21 +107,24 @@ function toPakTime(d) {
   try {
     return new Date(d).toLocaleString('en-PK', {
       timeZone: 'Asia/Karachi',
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: true
     });
   } catch { return 'TBA'; }
 }
 
+function getConfLevel(score) {
+  if (score >= 80) return 'High';
+  if (score >= 60) return 'Medium';
+  return 'Low';
+}
+
+// SSE Broadcast
 function broadcast(event, data) {
   const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-  sseClients = sseClients.filter(c => {
+  sseClients = sseClients.filter(client => {
     try {
-      c.write(msg);
+      client.write(msg);
       return true;
     } catch {
       return false;
@@ -123,9 +133,10 @@ function broadcast(event, data) {
   console.log(`📡 Broadcast ${event} to ${sseClients.length} clients`);
 }
 
+// Fetch from API-Football
 async function fetchMatches() {
   try {
-    console.log('\n🔄 Fetching matches from API-Football...');
+    console.log('\n🔄 Fetching matches...');
     
     if (apiCalls >= API_LIMIT) {
       console.log('⚠️ API limit reached');
@@ -133,71 +144,54 @@ async function fetchMatches() {
     }
     
     const today = new Date().toISOString().split('T')[0];
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
     
-    console.log(`📅 Dates: ${today} & ${tomorrow}`);
-    
-    let allMatches = [];
-    
-    for (const date of [today, tomorrow]) {
-      if (apiCalls >= API_LIMIT) break;
-      
-      console.log(`\n🔍 Fetching ${date}...`);
-      
-      const res = await fetch(
-        `https://v3.football.api-sports.io/fixtures?date=${date}`,
-        {
-          headers: {
-            'x-rapidapi-key': API_KEY,
-            'x-rapidapi-host': 'v3.football.api-sports.io'
-          },
-          signal: AbortSignal.timeout(15000)
-        }
-      );
-      
-      apiCalls++;
-      
-      if (!res.ok) {
-        console.log(`❌ API Error: ${res.status}`);
-        continue;
+    const res = await fetch(
+      `https://v3.football.api-sports.io/fixtures?date=${today}`,
+      {
+        headers: {
+          'x-rapidapi-key': API_KEY,
+          'x-rapidapi-host': 'v3.football.api-sports.io'
+        },
+        signal: AbortSignal.timeout(15000)
       }
-      
-      const data = await res.json();
-      
-      if (!data.response || data.response.length === 0) {
-        console.log(`⚠️ No matches for ${date}`);
-        continue;
-      }
-      
-      console.log(`✅ Total matches: ${data.response.length}`);
-      
-      const filtered = data.response.filter(f => 
-        Object.keys(TOP_LEAGUES).includes(String(f.league.id))
-      );
-      
-      console.log(`🎯 Target league matches: ${filtered.length}`);
-      
-      const matches = filtered.map(f => ({
-        match_id: `af_${f.fixture.id}`,
-        home_team: f.teams.home.name,
-        away_team: f.teams.away.name,
-        league: f.league.name,
-        home_score: f.goals.home || 0,
-        away_score: f.goals.away || 0,
-        status: convertStatus(f.fixture.status.short),
-        match_time_pkt: toPakTime(f.fixture.date),
-        match_date: new Date(f.fixture.date),
-        venue: f.fixture.venue?.name || 'TBA',
-        current_minute: f.fixture.status.elapsed || 0
-      }));
-      
-      allMatches = [...allMatches, ...matches];
+    );
+    
+    apiCalls++;
+    
+    if (!res.ok) {
+      console.log(`❌ API Error: ${res.status}`);
+      return [];
     }
     
-    console.log(`\n✅ Total fetched: ${allMatches.length} matches`);
+    const data = await res.json();
     
-    // Save to database
-    for (const m of allMatches) {
+    if (!data.response || data.response.length === 0) {
+      console.log('⚠️ No matches found');
+      return [];
+    }
+    
+    const filtered = data.response.filter(f => 
+      Object.keys(TOP_LEAGUES).includes(String(f.league.id))
+    );
+    
+    console.log(`✅ Found ${filtered.length} matches from target leagues`);
+    
+    const matches = filtered.map(f => ({
+      match_id: `af_${f.fixture.id}`,
+      home_team: f.teams.home.name,
+      away_team: f.teams.away.name,
+      league: f.league.name,
+      home_score: f.goals.home || 0,
+      away_score: f.goals.away || 0,
+      status: convertStatus(f.fixture.status.short),
+      match_time_pkt: toPakTime(f.fixture.date),
+      match_date: new Date(f.fixture.date),
+      venue: f.fixture.venue?.name || 'TBA',
+      current_minute: f.fixture.status.elapsed || 0,
+      last_updated: new Date()
+    }));
+    
+    for (const m of matches) {
       await Match.findOneAndUpdate(
         { match_id: m.match_id },
         m,
@@ -205,11 +199,9 @@ async function fetchMatches() {
       );
     }
     
-    console.log(`💾 Saved to database`);
+    broadcast('matchesUpdate', { count: matches.length });
     
-    broadcast('matchesUpdate', { count: allMatches.length });
-    
-    return allMatches;
+    return matches;
     
   } catch (err) {
     console.error('❌ Fetch error:', err.message);
@@ -217,9 +209,16 @@ async function fetchMatches() {
   }
 }
 
+// Fetch Live Stats
 async function fetchLiveStats(fixtureId) {
   try {
     if (apiCalls >= API_LIMIT) return null;
+    
+    const cacheKey = `stats_${fixtureId}`;
+    if (cache.has(cacheKey)) {
+      const cached = cache.get(cacheKey);
+      if (Date.now() - cached.timestamp < 120000) return cached.data;
+    }
     
     const res = await fetch(
       `https://v3.football.api-sports.io/fixtures/statistics?fixture=${fixtureId}`,
@@ -249,21 +248,28 @@ async function fetchLiveStats(fixtureId) {
         parseInt(stat.value.replace('%', '')) || 0 : stat.value || 0;
     };
     
-    return {
+    const stats = {
       shots_total: { home: getStat(hStats, 'Total Shots'), away: getStat(aStats, 'Total Shots') },
       shots_on_target: { home: getStat(hStats, 'Shots on Goal'), away: getStat(aStats, 'Shots on Goal') },
       shots_inside_box: { home: getStat(hStats, 'Shots insidebox'), away: getStat(aStats, 'Shots insidebox') },
       possession: { home: getStat(hStats, 'Ball Possession'), away: getStat(aStats, 'Ball Possession') },
       corners: { home: getStat(hStats, 'Corner Kicks'), away: getStat(aStats, 'Corner Kicks') },
+      yellow_cards: { home: getStat(hStats, 'Yellow Cards'), away: getStat(aStats, 'Yellow Cards') },
+      red_cards: { home: getStat(hStats, 'Red Cards'), away: getStat(aStats, 'Red Cards') },
       attacks: { home: getStat(hStats, 'Total Attacks'), away: getStat(aStats, 'Total Attacks') },
       dangerous_attacks: { home: getStat(hStats, 'Dangerous Attacks'), away: getStat(aStats, 'Dangerous Attacks') }
     };
     
+    cache.set(cacheKey, { data: stats, timestamp: Date.now() });
+    return stats;
+    
   } catch (err) {
+    console.error('❌ Stats error:', err.message);
     return null;
   }
 }
 
+// Prediction Algorithm
 async function calculatePrediction(match) {
   try {
     const prev = await Prediction.findOne({ match_id: match.match_id });
@@ -317,6 +323,7 @@ async function calculatePrediction(match) {
       awayProb += 12; homeProb -= 8; drawProb -= 4;
     }
     
+    // Normalize
     const total = homeProb + drawProb + awayProb;
     homeProb = Math.round((homeProb / total) * 100);
     drawProb = Math.round((drawProb / total) * 100);
@@ -334,12 +341,14 @@ async function calculatePrediction(match) {
       '5.5': Math.min(65, 8 + (totalXg * 5) + (curGoals > 5 ? 45 : curGoals * 3))
     };
     
-    const btts = Math.min(95, Math.round(
-      40 + (xGH > 0.6 ? 15 : 0) + (xGA > 0.6 ? 15 : 0) +
+    const btts = Math.round(
+      40 +
+      (xGH > 0.6 ? 15 : 0) +
+      (xGA > 0.6 ? 15 : 0) +
       ((match.live_stats?.shots_on_target?.home || 0) > 3 ? 10 : 0) +
       ((match.live_stats?.shots_on_target?.away || 0) > 3 ? 10 : 0) +
       (match.home_score > 0 && match.away_score > 0 ? 20 : 0)
-    ));
+    );
     
     const predScore = `${Math.round(xGH) + match.home_score}-${Math.round(xGA) + match.away_score}`;
     
@@ -349,6 +358,7 @@ async function calculatePrediction(match) {
                        (match.live_stats?.shots_total?.away || 0);
     if (totalShots > 15) conf += 15;
     else if (totalShots > 8) conf += 10;
+    
     conf = Math.max(40, Math.min(100, conf));
     
     const insights = [];
@@ -356,36 +366,46 @@ async function calculatePrediction(match) {
     if (momentum !== 'neutral') insights.push(`📈 Strong ${momentum} momentum`);
     if (totalXg > 3.0) insights.push('🎯 High scoring match expected');
     
-    return {
+    const prediction = {
       match_id: match.match_id,
       home_team: match.home_team,
       away_team: match.away_team,
       league: match.league,
       current_minute: match.current_minute,
       current_score: `${match.home_score}-${match.away_score}`,
+      
       winner_prob: {
-        home: { value: homeProb, trend: '─', change: 0 },
-        draw: { value: drawProb, trend: '─', change: 0 },
-        away: { value: awayProb, trend: '─', change: 0 }
+        home: { value: homeProb, trend: '─', change: prev ? homeProb - (prev.winner_prob?.home?.value || homeProb) : 0 },
+        draw: { value: drawProb, trend: '─', change: prev ? drawProb - (prev.winner_prob?.draw?.value || drawProb) : 0 },
+        away: { value: awayProb, trend: '─', change: prev ? awayProb - (prev.winner_prob?.away?.value || awayProb) : 0 }
       },
+      
       most_likely_score: predScore,
       over_under: overUnder,
-      btts_prob: btts,
+      btts_prob: Math.min(95, btts),
+      
       xG: {
         home: Number(xGH.toFixed(2)),
         away: Number(xGA.toFixed(2)),
         total: Number((xGH + xGA).toFixed(2))
       },
+      
       next_goal_likely: nextGoalProb > 50,
       next_goal_team: nextGoalTeam,
       next_goal_probability: Math.round(nextGoalProb),
       momentum: momentum,
+      
       live_insights: insights,
       value_bets: [],
+      
       confidence_score: Math.round(conf),
-      confidence_level: conf >= 80 ? 'High' : conf >= 60 ? 'Medium' : 'Low',
-      prediction_version: (prev?.prediction_version || 0) + 1
+      confidence_level: getConfLevel(conf),
+      
+      prediction_version: (prev?.prediction_version || 0) + 1,
+      last_updated: new Date()
     };
+    
+    return prediction;
     
   } catch (err) {
     console.error('❌ Prediction error:', err.message);
@@ -393,6 +413,7 @@ async function calculatePrediction(match) {
   }
 }
 
+// Update Live Matches
 async function updateLiveMatches() {
   if (!mongoConnected) return;
   
@@ -411,18 +432,20 @@ async function updateLiveMatches() {
       
       if (stats) {
         m.live_stats = stats;
+        m.last_updated = new Date();
         await m.save();
         console.log(`✅ Updated: ${m.home_team} vs ${m.away_team}`);
       }
     }
     
-    broadcast('liveStatsUpdate', { count: live.length });
+    broadcast('liveStatsUpdate', { count: live.length, timestamp: new Date() });
     
   } catch (err) {
     console.error('❌ Update error:', err.message);
   }
 }
 
+// Generate Predictions
 async function generatePredictions() {
   if (!mongoConnected) return;
   
@@ -447,13 +470,13 @@ async function generatePredictions() {
           { upsert: true, new: true }
         );
         count++;
-        console.log(`✅ ${m.home_team} vs ${m.away_team}`);
+        console.log(`✅ ${m.home_team} vs ${m.away_team} (${pred.confidence_score}%)`);
       }
     }
     
     console.log(`\n✅ Generated ${count} predictions`);
     
-    broadcast('newPredictions', { count });
+    broadcast('newPredictions', { count, timestamp: new Date() });
     
   } catch (err) {
     console.error('❌ Generation error:', err.message);
@@ -465,16 +488,18 @@ app.get('/api/live-stream', (req, res) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive'
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*'
   });
   
   sseClients.push(res);
-  console.log(`📡 SSE connected. Total: ${sseClients.length}`);
+  console.log(`📡 SSE client connected. Total: ${sseClients.length}`);
   
   res.write(`data: ${JSON.stringify({ message: 'Connected' })}\n\n`);
   
   req.on('close', () => {
     sseClients = sseClients.filter(c => c !== res);
+    console.log(`📡 Client disconnected. Remaining: ${sseClients.length}`);
   });
 });
 
@@ -482,7 +507,8 @@ app.get('/api/health', (req, res) => {
   res.json({
     success: true,
     mongodb: mongoConnected,
-    apiCalls: `${apiCalls}/${API_LIMIT}`
+    apiCalls: `${apiCalls}/${API_LIMIT}`,
+    clients: sseClients.length
   });
 });
 
@@ -509,7 +535,7 @@ app.get('/api/predictions', async (req, res) => {
     }
     
     const preds = await Prediction.find()
-      .sort({ confidence_score: -1 })
+      .sort({ confidence_score: -1, updatedAt: -1 })
       .limit(100);
     
     res.json({ success: true, count: preds.length, data: preds });
@@ -524,21 +550,48 @@ app.get('/', (req, res) => {
 
 // Auto Tasks
 setTimeout(async () => {
+  if (!mongoConnected) {
+    let attempts = 0;
+    while (!mongoConnected && attempts < 30) {
+      await new Promise(r => setTimeout(r, 1000));
+      attempts++;
+    }
+  }
+  
   if (mongoConnected) {
     console.log('🚀 Initial fetch...');
     await fetchMatches();
     await generatePredictions();
+    console.log('✅ Initial setup complete');
   }
 }, 10000);
 
-setInterval(updateLiveMatches, 2 * 60 * 1000);
-setInterval(generatePredictions, 5 * 60 * 1000);
-setInterval(() => mongoConnected && fetchMatches(), 15 * 60 * 1000);
+setInterval(updateLiveMatches, 2 * 60 * 1000); // 2 min
+setInterval(generatePredictions, 5 * 60 * 1000); // 5 min
+setInterval(() => mongoConnected && fetchMatches(), 15 * 60 * 1000); // 15 min
 
+setInterval(() => {
+  if (sseClients.length > 0) {
+    sseClients.forEach(c => {
+      try { c.write(': ping\n\n'); } catch {}
+    });
+  }
+}, 30000);
+
+// Start
 app.listen(PORT, () => {
-  console.log('\n╔════════════════════════════════════╗');
-  console.log('║  ⚽ LIVE PREDICTION SYSTEM ⚽      ║');
-  console.log(`║  🚀 Server: http://localhost:${PORT} ║`);
-  console.log('║  📡 SSE: /api/live-stream         ║');
-  console.log('╚════════════════════════════════════╝\n');
+  console.log('\n╔════════════════════════════════════════╗');
+  console.log('║  ⚽ LIVE PREDICTION SYSTEM ⚽          ║');
+  console.log('║                                        ║');
+  console.log(`║  🚀 Server: http://localhost:${PORT}  ║`);
+  console.log('║  📡 SSE: /api/live-stream             ║');
+  console.log('║  🎯 Predictions: Every 5 min          ║');
+  console.log('║  ⚡ Live Stats: Every 2 min           ║');
+  console.log('╚════════════════════════════════════════╝\n');
+});
+
+process.on('SIGTERM', async () => {
+  sseClients.forEach(c => c.end());
+  if (mongoConnected) await mongoose.connection.close();
+  process.exit(0);
 });
