@@ -1,813 +1,942 @@
 
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚽ Live Football Predictions - Auto Updates</title>
+    <title>⚽ Live Football Predictions</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #333;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
             min-height: 100vh;
         }
 
         .header {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            position: sticky;
-            top: 0;
-            z-index: 1000;
+            background: white;
+            padding: 25px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
         }
 
         .header h1 {
             text-align: center;
-            color: #667eea;
-            font-size: 2rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
+            font-size: 2.5rem;
+            color: #1e3c72;
+            margin-bottom: 15px;
         }
 
-        .live-indicator {
+        .live-dot {
             display: inline-block;
-            width: 12px;
-            height: 12px;
-            background: #ff4444;
+            width: 16px;
+            height: 16px;
+            background: #ef4444;
             border-radius: 50%;
             animation: pulse 2s infinite;
+            margin-left: 10px;
         }
 
         @keyframes pulse {
             0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(1.1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
         }
 
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes blink {
-            0%, 50%, 100% { opacity: 1; }
-            25%, 75% { opacity: 0.3; }
-        }
-
-        .pkt-time {
+        .time {
             text-align: center;
-            color: #764ba2;
-            font-size: 1.2rem;
-            font-weight: bold;
-            margin-top: 10px;
+            color: #6b7280;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 10px 0;
         }
 
-        .stats-bar {
+        .stats {
             display: flex;
             justify-content: center;
-            gap: 30px;
+            gap: 20px;
             margin-top: 15px;
             flex-wrap: wrap;
         }
 
-        .stat-item {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+        .stat {
+            background: #1e3c72;
             color: white;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-size: 0.9rem;
-            font-weight: bold;
-        }
-
-        .connection-status {
-            display: inline-block;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: bold;
-        }
-
-        .connected { background: #4CAF50; color: white; }
-        .disconnected { background: #ff4444; color: white; }
-
-        .button-container {
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            margin: 20px 0;
-            flex-wrap: wrap;
-        }
-
-        .tab-button {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            border: none;
-            padding: 15px 40px;
-            font-size: 1.1rem;
-            font-weight: bold;
+            padding: 12px 25px;
             border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.3s;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-            position: relative;
-        }
-
-        .tab-button:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
-        }
-
-        .tab-button.active {
-            background: linear-gradient(135deg, #56ab2f, #a8e063);
-            transform: scale(1.05);
-        }
-
-        .new-badge {
-            position: absolute;
-            top: -10px;
-            right: -10px;
-            background: #ff4444;
-            color: white;
-            padding: 5px 10px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            animation: blink 2s infinite;
+            font-weight: 700;
+            font-size: 1rem;
         }
 
         .container {
-            padding: 20px;
-            max-width: 1800px;
+            max-width: 1600px;
             margin: 0 auto;
+            padding: 30px 20px;
+        }
+
+        .buttons {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            background: white;
+            border: none;
+            padding: 18px 45px;
+            border-radius: 12px;
+            font-size: 1.2rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: #1e3c72;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+
+        .btn.active {
+            background: linear-gradient(135deg, #1e3c72, #7e22ce);
+            color: white;
+            transform: scale(1.05);
         }
 
         .section {
             background: white;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
-            max-height: calc(100vh - 320px);
-            overflow-y: auto;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            display: none;
         }
 
-        .section h2 {
-            color: #667eea;
-            margin-bottom: 20px;
-            font-size: 1.5rem;
-            border-bottom: 3px solid #667eea;
-            padding-bottom: 10px;
+        .section.active {
+            display: block;
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .section-header {
             display: flex;
-            align-items: center;
             justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 4px solid #1e3c72;
         }
 
-        .section-badge {
-            background: #ff4444;
+        .section-title {
+            font-size: 2rem;
+            font-weight: 900;
+            color: #1e3c72;
+        }
+
+        .badge {
+            background: #ef4444;
             color: white;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: 800;
+            font-size: 1.1rem;
         }
 
-        .match-card, .prediction-card {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 15px;
-            border-left: 5px solid #667eea;
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
+            gap: 25px;
+        }
+
+        .card {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border-radius: 15px;
+            padding: 25px;
+            border-left: 6px solid #1e3c72;
             transition: all 0.3s;
-            position: relative;
-            animation: slideIn 0.5s ease-out;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
 
-        .match-card:hover, .prediction-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+        .card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
         }
 
-        .prediction-card {
-            border-left-color: #764ba2;
-            background: white;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        .card.live {
+            border-left-color: #ef4444;
+            animation: glow 3s infinite;
         }
 
-        .new-card-badge {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: #ff4444;
-            color: white;
-            padding: 5px 10px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            animation: blink 3s infinite;
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4); }
+            50% { box-shadow: 0 8px 35px rgba(239, 68, 68, 0.7); }
         }
 
-        .match-header {
+        .card-top {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
         }
 
-        .league-badge {
-            background: #667eea;
+        .league {
+            background: #1e3c72;
             color: white;
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 0.75rem;
-            font-weight: bold;
+            padding: 8px 15px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 800;
         }
 
-        .status-badge {
-            display: inline-block;
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 0.8rem;
-            font-weight: bold;
+        .status {
+            padding: 8px 16px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 800;
         }
 
-        .status-live {
-            background: #ff4444;
+        .status.live {
+            background: #ef4444;
             color: white;
             animation: pulse 2s infinite;
         }
 
-        .status-ns { background: #4CAF50; color: white; }
-        .status-ft { background: #666; color: white; }
-        .status-ht { background: #ff9800; color: white; }
-
-        .countdown-timer {
-            background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+        .status.ns {
+            background: #10b981;
             color: white;
-            padding: 5px 12px;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-weight: bold;
-            margin-top: 5px;
-            display: inline-block;
+        }
+
+        .status.ht {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .status.ft {
+            background: #6b7280;
+            color: white;
+        }
+
+        .countdown {
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+            color: white;
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+            font-weight: 800;
+            margin: 15px 0;
+            font-size: 1.1rem;
         }
 
         .teams {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin: 15px 0;
-            font-size: 1.1rem;
-            font-weight: bold;
+            margin: 25px 0;
         }
 
-        .team { flex: 1; text-align: center; }
-        .vs { color: #667eea; font-weight: bold; padding: 0 15px; }
+        .team {
+            flex: 1;
+            text-align: center;
+            font-weight: 800;
+            font-size: 1.3rem;
+            color: #1e3c72;
+        }
+
+        .vs {
+            padding: 0 25px;
+            color: #7e22ce;
+            font-weight: 900;
+            font-size: 1.2rem;
+        }
 
         .score {
             display: flex;
             justify-content: center;
-            gap: 10px;
-            font-size: 1.8rem;
-            font-weight: bold;
-            color: #ff4444;
+            gap: 20px;
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: #ef4444;
+            margin: 20px 0;
+        }
+
+        .minute {
+            text-align: center;
+            color: #ef4444;
+            font-weight: 800;
+            font-size: 1.2rem;
             margin: 10px 0;
         }
 
-        .live-stats {
-            background: #f5f7fa;
-            padding: 12px;
-            border-radius: 8px;
-            margin: 10px 0;
+        .info {
+            text-align: center;
+            color: #6b7280;
+            font-size: 0.95rem;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 2px solid #e5e7eb;
         }
 
-        .live-stats h4 {
-            color: #667eea;
-            margin-bottom: 8px;
-            font-size: 0.9rem;
-        }
-
-        .stat-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin: 5px 0;
-            font-size: 0.85rem;
-        }
-
-        .stat-bar-container {
-            flex: 1;
-            height: 8px;
-            background: #e0e0e0;
-            border-radius: 4px;
-            margin: 0 10px;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .stat-fill {
-            height: 100%;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            border-radius: 4px;
-            transition: width 0.5s ease;
-        }
-
-        .prob-bars {
-            display: flex;
-            gap: 10px;
-            margin: 15px 0;
-        }
-
-        .prob-bar { flex: 1; text-align: center; }
-
-        .prob-label {
-            font-size: 0.8rem;
-            color: #666;
-            margin-bottom: 5px;
-        }
-
-        .prob-value {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            padding: 12px;
-            border-radius: 8px;
-            font-weight: bold;
-            font-size: 1.3rem;
+        .pred-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 25px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+            border-left: 6px solid #7e22ce;
             transition: all 0.3s;
         }
 
-        .prob-value:hover { transform: scale(1.05); }
-        .prob-value.home { background: linear-gradient(135deg, #56ab2f, #a8e063); }
-        .prob-value.draw { background: linear-gradient(135deg, #ffd89b, #19547b); }
-        .prob-value.away { background: linear-gradient(135deg, #f857a6, #ff5858); }
-
-        .xg-display {
-            display: flex;
-            justify-content: space-around;
-            background: #f5f7fa;
-            padding: 12px;
-            border-radius: 8px;
-            margin: 12px 0;
+        .pred-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
         }
 
-        .xg-item { text-align: center; }
+        .conf {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-weight: 800;
+            display: inline-block;
+            font-size: 1rem;
+        }
+
+        .conf.medium {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+        }
+
+        .conf.low {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        .prob-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin: 25px 0;
+        }
+
+        .prob {
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            color: white;
+        }
+
+        .prob.home {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        .prob.draw {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+        }
+
+        .prob.away {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        .prob-label {
+            font-size: 0.9rem;
+            opacity: 0.95;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .prob-val {
+            font-size: 2rem;
+            font-weight: 900;
+        }
+
+        .xg {
+            background: linear-gradient(135deg, #ede9fe, #ddd6fe);
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            text-align: center;
+        }
 
         .xg-label {
-            color: #666;
-            font-size: 0.75rem;
-            margin-bottom: 5px;
+            font-size: 0.85rem;
+            color: #6b7280;
+            margin-bottom: 8px;
+            font-weight: 700;
         }
 
-        .xg-value {
-            font-weight: bold;
-            color: #764ba2;
-            font-size: 1.2rem;
+        .xg-val {
+            font-size: 1.7rem;
+            font-weight: 900;
+            color: #7e22ce;
         }
 
         .markets {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-            gap: 10px;
-            margin-top: 15px;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin: 20px 0;
         }
 
-        .market-item {
-            background: #f5f7fa;
-            padding: 10px;
-            border-radius: 5px;
+        .market {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 10px;
             text-align: center;
-            font-size: 0.85rem;
-            transition: all 0.3s;
+            border: 2px solid transparent;
         }
 
-        .market-item:hover {
-            background: #e8eaf0;
-            transform: scale(1.05);
+        .market.strong {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border-color: #065f46;
         }
 
         .market-label {
-            color: #666;
-            margin-bottom: 5px;
-            font-size: 0.75rem;
-        }
-
-        .market-value {
-            font-weight: bold;
-            color: #667eea;
-            font-size: 1rem;
-        }
-
-        .live-insights {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 5px;
-        }
-
-        .insight-item {
-            color: #856404;
-            font-size: 0.85rem;
-            margin: 5px 0;
-        }
-
-        .value-bets {
-            background: linear-gradient(135deg, #56ab2f, #a8e063);
-            color: white;
-            padding: 12px;
-            border-radius: 8px;
-            margin-top: 12px;
-        }
-
-        .value-bets h4 {
+            font-size: 0.8rem;
             margin-bottom: 8px;
-            font-size: 0.9rem;
+            opacity: 0.8;
+            font-weight: 700;
         }
 
-        .value-bet-item {
-            background: rgba(255,255,255,0.2);
-            padding: 6px 10px;
-            border-radius: 5px;
-            margin: 5px 0;
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.85rem;
+        .market-val {
+            font-size: 1.3rem;
+            font-weight: 900;
         }
 
-        .toast {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            padding: 15px 25px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            animation: slideIn 0.5s ease-out;
-            z-index: 2000;
-            max-width: 400px;
+        .insights {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+        }
+
+        .insight {
+            padding: 10px 0;
+            color: #78350f;
+            font-size: 0.95rem;
+            font-weight: 600;
         }
 
         .loading {
             text-align: center;
-            padding: 40px;
-            color: #667eea;
-            font-size: 1.2rem;
+            padding: 80px;
         }
 
         .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
+            width: 70px;
+            height: 70px;
+            border: 8px solid #e5e7eb;
+            border-top-color: #7e22ce;
             border-radius: 50%;
-            width: 50px;
-            height: 50px;
             animation: spin 1s linear infinite;
-            margin: 20px auto;
+            margin: 0 auto 25px;
         }
 
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            to { transform: rotate(360deg); }
         }
 
-        .empty-state {
+        .loading-text {
+            font-size: 1.3rem;
+            color: #6b7280;
+            font-weight: 700;
+        }
+
+        .empty {
             text-align: center;
-            padding: 40px;
-            color: #999;
+            padding: 80px;
+            color: #9ca3af;
         }
 
-        .hidden { display: none; }
+        .empty-icon {
+            font-size: 5rem;
+            margin-bottom: 20px;
+        }
+
+        .empty-text {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            padding: 18px 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+            transform: translateX(500px);
+            transition: transform 0.4s;
+            z-index: 9999;
+            font-weight: 700;
+            font-size: 1.05rem;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
 
         @media (max-width: 768px) {
-            .header h1 { font-size: 1.5rem; }
-            .tab-button { padding: 12px 25px; font-size: 1rem; }
-            .toast { right: 10px; left: 10px; max-width: none; }
+            .grid { grid-template-columns: 1fr; }
+            .prob-grid { grid-template-columns: 1fr; }
+            .markets { grid-template-columns: repeat(2, 1fr); }
+            .btn { padding: 15px 30px; font-size: 1rem; }
         }
-
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb { background: #667eea; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #764ba2; }
     </style>
 </head>
 <body>
+    <div class="toast" id="toast"></div>
+
     <div class="header">
-        <h1>
-            ⚽ Live Football Predictions
-            <span class="live-indicator"></span>
-        </h1>
-        <div class="pkt-time" id="pktTime">Pakistan Time: Loading...</div>
-        <div class="stats-bar">
-            <div class="stat-item">📊 Matches: <span id="matchCount">0</span></div>
-            <div class="stat-item">🎯 Predictions: <span id="predCount">0</span></div>
-            <div class="stat-item">🔄 Last Update: <span id="lastUpdate">--:--:--</span></div>
-            <div class="stat-item">
-                <span id="connectionStatus" class="connection-status disconnected">● Disconnected</span>
-            </div>
+        <h1>⚽ Live Football Predictions <span class="live-dot"></span></h1>
+        <div class="time" id="time"></div>
+        <div class="stats">
+            <div class="stat">📊 Matches: <span id="matchCount">0</span></div>
+            <div class="stat">🎯 Predictions: <span id="predCount">0</span></div>
+            <div class="stat">🔄 Updated: <span id="lastUpdate">--:--</span></div>
         </div>
     </div>
 
-    <div class="button-container">
-        <button class="tab-button active" id="btnMatches" onclick="showMatches()">
-            📅 Live Matches
-        </button>
-        <button class="tab-button" id="btnPredictions" onclick="showPredictions()">
-            🎯 AI Predictions
-            <span class="new-badge hidden" id="newBadge">NEW!</span>
-        </button>
-    </div>
-
     <div class="container">
-        <div class="section" id="matchesSection">
-            <h2>
-                📅 Today's Matches
-                <span class="section-badge" id="matchBadge">0</span>
-            </h2>
+        <div class="buttons">
+            <button class="btn active" onclick="loadMatches()">
+                📅 TODAY'S LIVE MATCHES
+            </button>
+            <button class="btn" onclick="loadPredictions()">
+                🎯 TODAY'S PREDICTIONS
+            </button>
+        </div>
+
+        <div class="section active" id="matchesSection">
+            <div class="section-header">
+                <div class="section-title">📅 Today's Live Matches</div>
+                <div class="badge" id="matchBadge">0</div>
+            </div>
             <div id="matchesContainer">
                 <div class="loading">
                     <div class="spinner"></div>
-                    Loading matches...
+                    <div class="loading-text">Fetching live matches...</div>
                 </div>
             </div>
         </div>
 
-        <div class="section hidden" id="predictionsSection">
-            <h2>
-                🎯 AI Predictions
-                <span class="section-badge" id="predBadge">0</span>
-            </h2>
+        <div class="section" id="predictionsSection">
+            <div class="section-header">
+                <div class="section-title">🎯 Today's Predictions</div>
+                <div class="badge" id="predBadge">0</div>
+            </div>
             <div id="predictionsContainer">
                 <div class="loading">
                     <div class="spinner"></div>
-                    Loading predictions...
+                    <div class="loading-text">Generating predictions...</div>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        let eventSource = null;
-        let reconnectAttempts = 0;
-        const MAX_RECONNECT_ATTEMPTS = 5;
+        let state = {
+            matches: [],
+            predictions: [],
+            countdowns: {}
+        };
 
-        // Update Pakistan time
-        function updatePakistanTime() {
+        function updateTime() {
             const now = new Date();
-            const pktTime = now.toLocaleString('en-PK', { 
+            const pkt = now.toLocaleString('en-PK', {
                 timeZone: 'Asia/Karachi',
                 weekday: 'long',
-                year: 'numeric',
-                month: 'long',
                 day: 'numeric',
+                month: 'long',
+                year: 'numeric',
                 hour: '2-digit',
                 minute: '2-digit',
                 second: '2-digit',
                 hour12: true
             });
-            document.getElementById('pktTime').textContent = `🇵🇰 ${pktTime}`;
+            document.getElementById('time').textContent = `🇵🇰 ${pkt}`;
             
-            const updateTime = now.toLocaleTimeString('en-GB', {
+            const time = now.toLocaleTimeString('en-PK', {
+                timeZone: 'Asia/Karachi',
                 hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
+                minute: '2-digit'
             });
-            document.getElementById('lastUpdate').textContent = updateTime;
+            document.getElementById('lastUpdate').textContent = time;
         }
 
-        // Show toast notification
-        function showToast(message, duration = 3000) {
-            const toast = document.createElement('div');
-            toast.className = 'toast';
-            toast.textContent = message;
-            document.body.appendChild(toast);
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 4000);
+        }
+
+        function loadMatches() {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
             
-            setTimeout(() => {
-                toast.style.animation = 'slideIn 0.5s ease-out reverse';
-                setTimeout(() => toast.remove(), 500);
-            }, duration);
+            document.getElementById('matchesSection').classList.add('active');
+            event.target.classList.add('active');
+            
+            fetchMatches();
         }
 
-        // Calculate countdown
-        function getCountdown(matchDate) {
+        function loadPredictions() {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+            
+            document.getElementById('predictionsSection').classList.add('active');
+            event.target.classList.add('active');
+            
+            fetchPredictions();
+        }
+
+        function getStatus(status) {
+            const map = {
+                'NS': { cls: 'ns', txt: '⏱️ Not Started' },
+                'LIVE': { cls: 'live', txt: '🔴 LIVE' },
+                '1H': { cls: 'live', txt: '🔴 1st Half' },
+                '2H': { cls: 'live', txt: '🔴 2nd Half' },
+                'HT': { cls: 'ht', txt: '⏸️ Half Time' },
+                'FT': { cls: 'ft', txt: '✅ Full Time' }
+            };
+            const s = map[status] || { cls: 'ns', txt: status };
+            return `<span class="status ${s.cls}">${s.txt}</span>`;
+        }
+
+        function getCountdown(date) {
             const now = new Date();
-            const match = new Date(matchDate);
+            const match = new Date(date);
             const diff = match - now;
             
-            if (diff < 0) return null;
+            if (diff <= 0) return null;
             
             const days = Math.floor(diff / (1000 * 60 * 60 * 24));
             const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const secs = Math.floor((diff % (1000 * 60)) / 1000);
             
-            if (days > 0) return `⏳ ${days}d ${hours}h`;
-            if (hours > 0) return `⏳ ${hours}h ${minutes}m`;
-            if (minutes > 0) return `⏳ ${minutes} min`;
-            return `⏳ Starting soon!`;
-        }
-
-        // Show/Hide sections
-        function showMatches() {
-            document.getElementById('matchesSection').classList.remove('hidden');
-            document.getElementById('predictionsSection').classList.add('hidden');
-            document.getElementById('btnMatches').classList.add('active');
-            document.getElementById('btnPredictions').classList.remove('active');
-        }
-
-        function showPredictions() {
-            document.getElementById('matchesSection').classList.add('hidden');
-            document.getElementById('predictionsSection').classList.remove('hidden');
-            document.getElementById('btnMatches').classList.remove('active');
-            document.getElementById('btnPredictions').classList.add('active');
-            document.getElementById('newBadge').classList.add('hidden');
-        }
-
-        // Get status badge
-        function getStatusBadge(status) {
-            const statusMap = {
-                'NS': { class: 'status-ns', text: 'Not Started' },
-                'LIVE': { class: 'status-live', text: '🔴 LIVE' },
-                '1H': { class: 'status-live', text: '🔴 1st Half' },
-                '2H': { class: 'status-live', text: '🔴 2nd Half' },
-                'HT': { class: 'status-ht', text: 'Half Time' },
-                'FT': { class: 'status-ft', text: 'Full Time' }
-            };
-            const s = statusMap[status] || { class: 'status-ns', text: status };
-            return `<span class="status-badge ${s.class}">${s.text}</span>`;
-        }
-
-        // Render live stats
-        function renderLiveStats(stats) {
-            if (!stats) return '';
+            let txt = '';
+            if (days > 0) txt += `${days}d `;
+            if (hours > 0 || days > 0) txt += `${hours}h `;
+            txt += `${mins}m ${secs}s`;
             
-            return `
-                <div class="live-stats">
-                    <h4>📊 Live Statistics</h4>
-                    <div class="stat-row">
-                        <span>${stats.possession?.home || 0}%</span>
-                        <div class="stat-bar-container">
-                            <div class="stat-fill" style="width: ${stats.possession?.home || 0}%"></div>
-                        </div>
-                        <span>${stats.possession?.away || 0}%</span>
-                    </div>
-                    <div style="text-align:center; font-size:0.75rem; color:#666; margin-top:5px;">
-                        Possession
-                    </div>
-                    <div class="stat-row" style="margin-top:10px;">
-                        <span>${stats.shots_on_target?.home || 0}</span>
-                        <span style="font-size:0.75rem; color:#666;">Shots on Target</span>
-                        <span>${stats.shots_on_target?.away || 0}</span>
-                    </div>
-                    <div class="stat-row">
-                        <span>${stats.corners?.home || 0}</span>
-                        <span style="font-size:0.75rem; color:#666;">Corners</span>
-                        <span>${stats.corners?.away || 0}</span>
-                    </div>
-                </div>
-            `;
+            return txt;
         }
 
-        // Render matches
+        function updateCountdowns() {
+            state.matches.forEach(m => {
+                if (m.status === 'NS') {
+                    const cd = getCountdown(m.match_date);
+                    const el = document.getElementById(`cd-${m.match_id}`);
+                    if (el && cd) el.textContent = cd;
+                }
+            });
+        }
+
         function renderMatches(matches) {
-            const container = document.getElementById('matchesContainer');
+            const c = document.getElementById('matchesContainer');
             
             if (!matches || matches.length === 0) {
-                container.innerHTML = '<div class="empty-state">📭 No matches available right now.</div>';
+                c.innerHTML = `
+                    <div class="empty">
+                        <div class="empty-icon">📭</div>
+                        <div class="empty-text">No live matches available</div>
+                    </div>
+                `;
                 document.getElementById('matchBadge').textContent = '0';
                 document.getElementById('matchCount').textContent = '0';
                 return;
             }
 
-            container.innerHTML = matches.map(match => {
-                const isLive = ['LIVE', '1H', '2H', 'HT'].includes(match.status);
-                const countdown = match.status === 'NS' ? getCountdown(match.match_date) : null;
+            state.matches = matches;
+            
+            const html = matches.map(m => {
+                const isLive = ['LIVE', '1H', '2H', 'HT'].includes(m.status);
+                const cd = m.status === 'NS' ? getCountdown(m.match_date) : null;
                 
                 return `
-                <div class="match-card">
-                    <div class="match-header">
-                        <span class="league-badge">${match.league || 'Unknown'}</span>
-                        ${getStatusBadge(match.status)}
-                    </div>
-                    <div style="color:#666; font-size:0.9rem; margin:5px 0;">
-                        🕐 ${match.match_time_pkt || 'Time TBA'}
-                        ${countdown ? `<br><span class="countdown-timer">${countdown}</span>` : ''}
-                    </div>
-                    <div class="teams">
-                        <div class="team">${match.home_team}</div>
-                        <div class="vs">VS</div>
-                        <div class="team">${match.away_team}</div>
-                    </div>
-                    ${isLive ? `
-                        <div class="score">
-                            <span>${match.home_score || 0}</span>
-                            <span>-</span>
-                            <span>${match.away_score || 0}</span>
+                    <div class="card ${isLive ? 'live' : ''}">
+                        <div class="card-top">
+                            <span class="league">${m.league || 'League'}</span>
+                            ${getStatus(m.status)}
                         </div>
-                        ${match.current_minute ? `<div style="text-align:center; color:#ff4444; font-weight:bold;">⏱️ ${match.current_minute}'</div>` : ''}
-                        ${renderLiveStats(match.live_stats)}
-                    ` : ''}
-                    ${match.venue ? `<div style="text-align:center; color:#666; font-size:0.8rem; margin-top:5px;">📍 ${match.venue}</div>` : ''}
-                </div>
-            `}).join('');
-
-            document.getElementById('matchCount').textContent = matches.length;
+                        
+                        ${cd ? `
+                            <div class="countdown">
+                                ⏰ Starts in <span id="cd-${m.match_id}">${cd}</span>
+                            </div>
+                        ` : ''}
+                        
+                        <div class="teams">
+                            <div class="team">${m.home_team}</div>
+                            <div class="vs">VS</div>
+                            <div class="team">${m.away_team}</div>
+                        </div>
+                        
+                        ${isLive || m.status === 'FT' ? `
+                            <div class="score">
+                                <span>${m.home_score || 0}</span>
+                                <span>-</span>
+                                <span>${m.away_score || 0}</span>
+                            </div>
+                            ${m.current_minute ? `
+                                <div class="minute">⚽ ${m.current_minute}'</div>
+                            ` : ''}
+                        ` : ''}
+                        
+                        <div class="info">
+                            📍 ${m.venue || 'Venue TBA'}<br>
+                            🕐 ${m.match_time_pkt || 'Time TBA'}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            c.innerHTML = `<div class="grid">${html}</div>`;
             document.getElementById('matchBadge').textContent = matches.length;
+            document.getElementById('matchCount').textContent = matches.length;
         }
 
-        // Render predictions
-        function renderPredictions(predictions) {
-            const container = document.getElementById('predictionsContainer');
+        function renderPredictions(preds) {
+            const c = document.getElementById('predictionsContainer');
             
-            if (!predictions || predictions.length === 0) {
-                container.innerHTML = '<div class="empty-state">🤖 No predictions available yet.</div>';
+            if (!preds || preds.length === 0) {
+                c.innerHTML = `
+                    <div class="empty">
+                        <div class="empty-icon">🤖</div>
+                        <div class="empty-text">Generating predictions...</div>
+                    </div>
+                `;
                 document.getElementById('predBadge').textContent = '0';
                 document.getElementById('predCount').textContent = '0';
                 return;
             }
 
-            container.innerHTML = predictions.map(pred => `
-                <div class="prediction-card">
-                    <div class="match-header">
-                        <span class="league-badge">${pred.league || 'Unknown'}</span>
-                        <span style="background: linear-gradient(135deg, #ffd89b, #19547b); color: white; padding: 5px 12px; border-radius: 5px; font-size: 0.8rem;">
-                            ⭐ ${pred.confidence_score || 0}% Confidence
-                        </span>
-                    </div>
-                    <div class="teams">
-                        <div class="team">${pred.home_team}</div>
-                        <div class="vs">VS</div>
-                        <div class="team">${pred.away_team}</div>
-                    </div>
-
-                    <div class="prob-bars">
-                        <div class="prob-bar">
-                            <div class="prob-label">Home Win</div>
-                            <div class="prob-value home">
-                                ${pred.winner_prob?.home?.value || 0}%
-                                <span style="font-size:0.8rem;">${pred.winner_prob?.home?.trend || ''}</span>
+            state.predictions = preds;
+            
+            const html = preds.map(p => {
+                const confCls = p.confidence_score >= 80 ? '' : p.confidence_score >= 60 ? 'medium' : 'low';
+                
+                return `
+                    <div class="pred-card">
+                        <div class="card-top">
+                            <span class="league">${p.league || 'League'}</span>
+                            <span class="conf ${confCls}">⭐ ${p.confidence_score || 0}%</span>
+                        </div>
+                        
+                        <div class="teams">
+                            <div class="team">${p.home_team}</div>
+                            <div class="vs">VS</div>
+                            <div class="team">${p.away_team}</div>
+                        </div>
+                        
+                        ${p.current_minute > 0 ? `
+                            <div class="minute">
+                                ⚽ ${p.current_minute}' | Current Score: ${p.current_score}
+                            </div>
+                        ` : ''}
+                        
+                        <div class="prob-grid">
+                            <div class="prob home">
+                                <div class="prob-label">Home Win</div>
+                                <div class="prob-val">${p.winner_prob?.home?.value || 0}%</div>
+                            </div>
+                            <div class="prob draw">
+                                <div class="prob-label">Draw</div>
+                                <div class="prob-val">${p.winner_prob?.draw?.value || 0}%</div>
+                            </div>
+                            <div class="prob away">
+                                <div class="prob-label">Away Win</div>
+                                <div class="prob-val">${p.winner_prob?.away?.value || 0}%</div>
                             </div>
                         </div>
-                        <div class="prob-bar">
-                            <div class="prob-label">Draw</div>
-                            <div class="prob-value draw">
-                                ${pred.winner_prob?.draw?.value || 0}%
-                                <span style="font-size:0.8rem;">${pred.winner_prob?.draw?.trend || ''}</span>
+                        
+                        <div class="xg">
+                            <div>
+                                <div class="xg-label">Home xG</div>
+                                <div class="xg-val">${p.xG?.home?.toFixed(2) || '0.00'}</div>
+                            </div>
+                            <div>
+                                <div class="xg-label">Total xG</div>
+                                <div class="xg-val">${p.xG?.total?.toFixed(2) || '0.00'}</div>
+                            </div>
+                            <div>
+                                <div class="xg-label">Away xG</div>
+                                <div class="xg-val">${p.xG?.away?.toFixed(2) || '0.00'}</div>
                             </div>
                         </div>
-                        <div class="prob-bar">
-                            <div class="prob-label">Away Win</div>
-                            <div class="prob-value away">
-                                ${pred.winner_prob?.away?.value || 0}%
-                                <span style="font-size:0.8rem;">${pred.winner_prob?.away?.trend || ''}</span>
+                        
+                        <div class="markets">
+                            <div class="market ${(p.btts_prob || 0) >= 75 ? 'strong' : ''}">
+                                <div class="market-label">BTTS</div>
+                                <div class="market-val">${p.btts_prob || 0}%</div>
+                            </div>
+                            <div class="market ${(p.over_under?.['2.5'] || 0) >= 75 ? 'strong' : ''}">
+                                <div class="market-label">Over 2.5</div>
+                                <div class="market-val">${Math.round(p.over_under?.['2.5'] || 0)}%</div>
+                            </div>
+                            <div class="market ${(p.over_under?.['3.5'] || 0) >= 75 ? 'strong' : ''}">
+                                <div class="market-label">Over 3.5</div>
+                                <div class="market-val">${Math.round(p.over_under?.['3.5'] || 0)}%</div>
+                            </div>
+                            <div class="market">
+                                <div class="market-label">Score</div>
+                                <div class="market-val">${p.most_likely_score || '0-0'}</div>
                             </div>
                         </div>
+                        
+                        ${p.live_insights && p.live_insights.length > 0 ? `
+                            <div class="insights">
+                                ${p.live_insights.map(ins => `<div class="insight">${ins}</div>`).join('')}
+                            </div>
+                        ` : ''}
                     </div>
+                `;
+            }).join('');
+            
+            c.innerHTML = html;
+            document.getElementById('predBadge').textContent = preds.length;
+            document.getElementById('predCount').textContent = preds.length;
+        }
 
-                    <div class="xg-display">
-                        <div class="xg-item">
-                            <div class="xg-label">Home xG</div>
-                            <div class="xg-value">${pred.xG?.home || 0}</div>
-                        </div>
-                        <div class="xg-item">
-                            <div class="xg-label">Total xG</div>
-                            <div class="xg-value">${pred.xG?.total || 0}</div>
-                        </div>
-                        <div class="xg-item">
-                            <div class="xg-label">Away xG</div>
-                            <div class="xg-value">${pred.xG?.away || 0}</div>
-                        </div>
+        async function fetchMatches() {
+            try {
+                console.log('Fetching matches...');
+                const res = await fetch('/api/matches');
+                const data = await res.json();
+                
+                console.log('Matches response:', data);
+                
+                if (data.success) {
+                    renderMatches(data.data);
+                    showToast(`✅ Loaded ${data.count} matches`);
+                } else {
+                    throw new Error(data.error || 'Failed to load matches');
+                }
+            } catch (err) {
+                console.error('Fetch error:', err);
+                document.getElementById('matchesContainer').innerHTML = `
+                    <div class="empty">
+                        <div class="empty-icon">❌</div>
+                        <div class="empty-text">Error loading matches</div>
                     </div>
+                `;
+                showToast('❌ Error loading matches');
+            }
+        }
 
-                    <div class="markets">
-                        <div class="market-item">
-                            <div class="market-label">BTTS</div>
-                            <div class="market-value">${pred.btts_prob || 0}%</div>
-                        </div>
-                        <div class="market-item">
-                            <div class="market-label">Over 2.5</div>
-                            <div class="market-value">${pred.over_under?.['2.5'] ? Math.round(pred.over_under['2.5']) : 0}%</div>
-                        </div>
-                        <div class="market-item">
-                            <div class="market-label">Over 3.5</div>
-                            <div class="market-value">${pred.over_under?.['3.5'] ? Math.round(pred.over_under['3.5']) : 0}%</div>
-                        </div>
-                        <div class="market-item">
-                            <div class="market-label">Score</div>
-                            <div class="market-value">${pred.most_likely_score || 'N/A'}</div>
-                        </div>
+        async function fetchPredictions() {
+            try {
+                console.log('Fetching predictions...');
+                const res = await fetch('/api/predictions');
+                const data = await res.json();
+                
+                console.log('Predictions response:', data);
+                
+                if (data.success) {
+                    renderPredictions(data.data);
+                    showToast(`✅ Loaded ${data.count} predictions`);
+                } else {
+                    throw new Error(data.error || 'Failed to load predictions');
+                }
+            } catch (err) {
+                console.error('Fetch error:', err);
+                document.getElementById('predictionsContainer').innerHTML = `
+                    <div class="empty">
+                        <div class="empty-icon">❌</div>
+                        <div class="empty-text">Error loading predictions</div>
                     </div>
+                `;
+                showToast('❌ Error loading predictions');
+            }
+        }
 
-                    ${pred.live_insights && pred.live_insights.length > 0 ? `
-                        <div class="live-insights">
-                            ${pred.live_insights.map(insight => `
-                                <div class="insight-item">${insight}</div>
-                            `).join('')}
-                        </div>
-                    ` : ''}
+        // SSE Connection
+        let eventSource;
+        function connectSSE() {
+            if (eventSource) eventSource.close();
+            
+            eventSource = new EventSource('/api/live-stream');
+            
+            eventSource.addEventListener('newPredictions', (e) => {
+                const data = JSON.parse(e.data);
+                showToast(`🔔 ${data.count} new predictions generated!`);
+                
+                // Refresh if on predictions tab
+                const predSection = document.getElementById('predictionsSection');
+                if (predSection.classList.contains('active')) {
+                    fetchPredictions();
+                }
+            });
+            
+            eventSource.addEventListener('matchesUpdate', (e) => {
+                const data = JSON.parse(e.data);
+                showToast(`📊 ${data.count} matches updated!`);
+                
+                // Refresh if on matches tab
+                const matchSection = document.getElementById('matchesSection');
+                if (matchSection.classList.contains('active')) {
+                    fetchMatches();
+                }
+            });
+            
+            eventSource.addEventListener('liveStatsUpdate', (e) => {
+                console.log('Live stats updated');
+                
+                // Auto-refresh current view
+                const matchSection = document.getElementById('matchesSection');
+                const predSection = document.getElementById('predictionsSection');
+                
+                if (matchSection.classList.contains('active')) {
+                    fetchMatches();
+                }
+                if (predSection.classList.contains('active')) {
+                    fetchPredictions();
+                }
+            });
+            
+            eventSource.onerror = () => {
+                console.log('SSE connection lost, reconnecting...');
+                setTimeout(connectSSE, 5000);
+            };
+        }
 
-                    ${pred.value_bets && pred.value_bets.length > 0 ? `
-                        <div class="value-bets">
-                            <h4>💰 Value Bets</h4>
-                            ${pred.value_bets.map(bet => `
-                                <div class="value-bet-item">
-                                    <span>${bet.market}</span>
-                                    <span><strong>${bet.probability}%</strong> - ${bet.recommendation}</span>
+        // Initialize
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('App initialized');
+            
+            updateTime();
+            setInterval(updateTime, 1000);
+            setInterval(updateCountdowns, 1000);
+            
+            // Initial load
+            fetchMatches();
+            
+            // Connect SSE for real-time updates
+            connectSSE();
+            
+            // Auto-refresh every 2 minutes
+            setInterval(() => {
+                const matchSection = document.getElementById('matchesSection');
+                const predSection = document.getElementById('predictionsSection');
+                
+                if (matchSection.classList.contains('active')) {
+                    fetchMatches();
+                }
+                if (predSection.classList.contains('active')) {
+                    fetchPredictions();
+                }
+            }, 2 * 60 * 1000);
+        });
+
+        window.addEventListener('beforeunload', () => {
+            if (eventSource) eventSource.close();
+        });
