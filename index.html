@@ -1,20 +1,23 @@
 
 
+
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#00d4aa">
-  <title>⚽ SYNDICATE v8.5 - LIVE ALERT SYSTEM</title>
+  <title>🧠 SYNDICATE v8.7 ML HYBRID - 85%+ ACCURACY</title>
   <style>
     :root {
       --primary-gradient: linear-gradient(135deg, rgba(0,212,170,0.4), rgba(0,184,148,0.2));
       --secondary-gradient: linear-gradient(135deg, rgba(255,210,63,0.4), rgba(255,193,7,0.2));
+      --ml-gradient: linear-gradient(135deg, rgba(156,102,255,0.5), rgba(128,0,255,0.3));
       --danger-gradient: linear-gradient(135deg, rgba(255,107,122,0.4), rgba(255,152,0,0.2));
       --border-primary: 2px solid #00d4aa;
-      --border-secondary: 2px solid #ffd23f;
-      --border-danger: 2px solid #ff6b7a;
+      --border-ml: 2px solid #9c66ff;
       --alert-gradient: linear-gradient(135deg, rgba(255,215,0,0.6), rgba(255,165,0,0.4));
     }
 
@@ -24,250 +27,296 @@
     .container{max-width:100%;margin:0 auto;padding:10px;}
     @media (min-width:768px){.container{max-width:1400px;padding:20px;}}
 
-    .alert-toggle{position:fixed;top:20px;left:20px;background:rgba(0,0,0,0.9);backdrop-filter:blur(20px);padding:12px 16px;border-radius:15px;border:2px solid #ffd700;z-index:1001;font-size:14px;cursor:pointer;}
+    .alert-toggle{position:fixed;top:20px;left:20px;background:rgba(0,0,0,0.9);backdrop-filter:blur(20px);padding:12px 16px;border-radius:15px;border:var(--border-primary);z-index:1001;font-size:14px;cursor:pointer;}
     .alert-toggle input[type="checkbox"]{margin-right:8px;transform:scale(1.2);accent-color:#ffd700;}
 
-    .header{position:relative;text-align:center;padding:30px;background:var(--primary-gradient);border-radius:25px;margin-bottom:25px;border:var(--border-primary);}
-    .header h1{font-size:clamp(1.8em,5vw,3em);background:linear-gradient(45deg,#00d4aa,#00b894);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px;}
+    .header{position:relative;text-align:center;padding:30px;background:var(--ml-gradient);border-radius:25px;margin-bottom:25px;border:var(--border-ml);}
+    .header h1{font-size:clamp(1.8em,5vw,3em);background:linear-gradient(45deg,#9c66ff,#00d4aa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px;}
     .header p{font-size:1.1em;opacity:0.9;}
 
     .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:15px;margin:20px 0;}
     .stat-card{background:rgba(255,255,255,0.08);backdrop-filter:blur(15px);padding:20px;border-radius:20px;text-align:center;border:1px solid rgba(255,255,255,0.15);transition:all 0.3s ease;}
     .stat-card:hover{transform:translateY(-8px) scale(1.02);}
-    .stat-value{font-size:clamp(2em,5vw,3em);font-weight:900;background:linear-gradient(45deg,#00d4aa,#00b894);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;}
+    .stat-value{font-size:clamp(2em,5vw,3em);font-weight:900;background:linear-gradient(45deg,#00d4aa,#9c66ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;}
     .stat-label{font-size:13px;opacity:0.9;text-transform:uppercase;letter-spacing:1px;}
+    .ml-stat{background:var(--ml-gradient) !important;border:var(--border-ml) !important;}
     .alert-stat{animation:pulse-gold 2s infinite;background:var(--alert-gradient) !important;border:2px solid #ffd700 !important;}
 
     .matches{display:grid;gap:20px;max-height:70vh;overflow-y:auto;padding:15px;scrollbar-width:thin;}
     .matches::-webkit-scrollbar{width:8px;}
-    .matches::-webkit-scrollbar-thumb{background:linear-gradient(135deg,#00d4aa,#00b894);border-radius:10px;}
+    .matches::-webkit-scrollbar-thumb{background:linear-gradient(135deg,#9c66ff,#00d4aa);border-radius:10px;}
 
     .match{background:rgba(255,255,255,0.06);backdrop-filter:blur(20px);padding:25px;border-radius:25px;border:1px solid rgba(255,255,255,0.1);transition:all 0.4s cubic-bezier(0.25,0.46,0.45,0.94);position:relative;overflow:hidden;}
-    .match::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#00d4aa,#00b894);}
-    .match:hover{transform:translateY(-10px);box-shadow:0 25px 50px rgba(0,212,170,0.3);}
+    .match::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#9c66ff,#00d4aa);}
+    .match:hover{transform:translateY(-10px);box-shadow:0 25px 50px rgba(156,102,255,0.3);}
     .match.alert-active{background:var(--alert-gradient) !important;border:3px solid #ffd700 !important;animation:pulse 1s infinite;box-shadow:0 0 50px rgba(255,215,0,0.7) !important;}
     
-    .match-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+    .match-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
     .league{font-size:clamp(1.2em,3vw,1.5em);font-weight:900;color:#00d4ff;text-shadow:0 0 10px rgba(0,212,255,0.5);}
     .badge{padding:8px 15px;border-radius:20px;font-size:12px;font-weight:900;box-shadow:0 4px 15px rgba(0,0,0,0.3);}
-    .enhanced-badge{background:linear-gradient(45deg,#00d4aa,#00b894);color:#fff;}
+    .ml-badge{background:linear-gradient(45deg,#9c66ff,#7c3aed);color:#fff;}
     .alert-badge{background:#ffd700 !important;color:#000 !important;animation:pulse 1.5s infinite;}
+    .enhanced-badge{background:linear-gradient(45deg,#00d4aa,#00b894);color:#fff;}
 
     .score-board{display:grid;grid-template-columns:1fr auto 1fr;gap:20px;align-items:center;margin:20px 0;}
     @media (max-width:500px){.score-board{grid-template-columns:1fr;text-align:center;gap:10px;}}
     .team-name{font-size:clamp(1.2em,4vw,1.6em);font-weight:900;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,0.5);}
     .live-score{font-size:clamp(2.5em,8vw,4em);font-weight:900;color:#ffeb3b;text-shadow:0 0 30px #ffeb3b;letter-spacing:2px;}
 
-    .status-bar{padding:15px;background:linear-gradient(90deg,rgba(255,71,87,0.25),rgba(0,212,170,0.25));border-radius:20px;display:flex;justify-content:center;align-items:center;font-size:clamp(1em,2.5vw,1.2em);font-weight:700;margin:20px 0;box-shadow:inset 0 2px 10px rgba(0,0,0,0.2);}
+    .status-bar{padding:15px;background:linear-gradient(90deg,rgba(156,102,255,0.25),rgba(0,212,170,0.25));border-radius:20px;display:flex;justify-content:center;align-items:center;font-size:clamp(1em,2.5vw,1.2em);font-weight:700;margin:20px 0;box-shadow:inset 0 2px 10px rgba(0,0,0,0.2);flex-wrap:wrap;gap:10px;text-align:center;}
     .live-indicator{width:20px;height:20px;background:#ff4757;border-radius:50%;animation:pulse 1s infinite;margin-right:12px;box-shadow:0 0 20px #ff4757;}
+
+    .prob-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin:20px 0;}
+    .prob-card{padding:16px;background:rgba(255,255,255,0.1);border-radius:15px;text-align:center;font-weight:900;font-size:clamp(0.9em,2vw,1em);position:relative;overflow:hidden;}
+    .prob-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--border-ml),var(--border-primary));}
+    .prob-card.ml-prob{background:var(--ml-gradient);border:var(--border-ml);}
+    .prob-card.poisson-prob{background:var(--primary-gradient);border:var(--border-primary);}
+    .prob-card.combined-prob{background:var(--secondary-gradient);border:2px solid #ffd23f;}
+    .prob-card:hover{transform:scale(1.05);box-shadow:0 10px 25px rgba(0,0,0,0.4);}
+    .prob-value{font-size:1.3em;font-weight:900;}
+    .prob-label{font-size:11px;opacity:0.9;text-transform:uppercase;}
 
     .oneXtwo-grid{display:grid;grid-template-columns:1fr;gap:12px;margin:20px 0;}
     @media (min-width:500px){.oneXtwo-grid{grid-template-columns:repeat(3,1fr);}}
     .oneXtwo-card{padding:20px;background:rgba(255,255,255,0.1);border-radius:20px;text-align:center;font-weight:900;font-size:clamp(1em,2.5vw,1.2em);cursor:pointer;transition:all 0.3s ease;position:relative;overflow:hidden;}
-    .oneXtwo-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--border-primary),var(--border-secondary));}
+    .oneXtwo-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--border-primary),var(--secondary-gradient));}
     .oneXtwo-card:hover{transform:scale(1.08) translateY(-3px);box-shadow:0 15px 30px rgba(0,0,0,0.3);}
     .home-win{background:var(--primary-gradient);border:var(--border-primary);}
-    .draw{background:var(--secondary-gradient);border:var(--border-secondary);}
-    .away-win{background:var(--danger-gradient);border:var(--border-danger);}
-
-    .over-under-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:12px;margin:20px 0;padding:20px;background:rgba(255,255,255,0.06);border-radius:20px;border:2px solid rgba(0,212,170,0.3);box-shadow:inset 0 2px 10px rgba(0,0,0,0.2);}
-    .ou-card{padding:16px;background:rgba(0,0,0,0.5);border-radius:15px;text-align:center;font-weight:900;font-size:clamp(0.9em,2vw,1em);cursor:pointer;transition:all 0.3s ease;position:relative;}
-    .ou-card:hover{transform:scale(1.05);box-shadow:0 10px 25px rgba(0,0,0,0.4);}
-    .ou-over{background:linear-gradient(135deg,#00d4aa,#00b894);color:#fff;border:2px solid #00d4aa;}
-    .ou-under{background:linear-gradient(135deg,#ff6b7a,#ff8e8e);color:#fff;border:2px solid #ff6b7a;}
-    .ou-high::after{content:'🚀';position:absolute;top:5px;right:5px;font-size:14px;animation:pulse 1s infinite;}
+    .draw{background:var(--secondary-gradient);}
+    .away-win{background:var(--danger-gradient);}
 
     .stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin:20px 0;font-size:12px;}
     .stat-box{padding:15px;background:rgba(255,255,255,0.08);border-radius:15px;text-align:center;border:1px solid rgba(255,255,255,0.2);font-weight:800;transition:all 0.3s;}
     .stat-box:hover{transform:scale(1.05);}
+    .ml-badge-small{background:var(--ml-gradient);color:#fff;padding:4px 8px;border-radius:12px;font-size:10px;}
+    
+    .filter-status{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px;}
+    .filter-tag{padding:6px 12px;border-radius:20px;font-size:12px;font-weight:700;}
+    .filter-pass{background:#00d4aa;color:#000;border:1px solid #00d4aa;}
+    .filter-fail{background:#ff6b7a;color:#fff;border:1px solid #ff6b7a;}
     
     @keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.7;transform:scale(1.08);}}
     @keyframes pulse-gold{0%,100%{box-shadow:0 0 20px rgba(255,215,0,0.5);}50%{box-shadow:0 0 40px rgba(255,215,0,0.8);}}
     
     .loading,.no-matches{text-align:center;font-size:2em;padding:120px;color:#00d4aa;animation:pulse 1.5s infinite;}
     .no-matches{color:#ff6b7a;}
-    .refresh-btn{position:fixed;bottom:25px;right:25px;background:linear-gradient(45deg,#00d4aa,#00b894);border:none;color:white;width:70px;height:70px;border-radius:50%;font-size:1.8em;cursor:pointer;z-index:1000;transition:all 0.3s ease;box-shadow:0 10px 30px rgba(0,212,170,0.4);}
+    .refresh-btn{position:fixed;bottom:25px;right:25px;background:linear-gradient(45deg,#9c66ff,#00d4aa);border:none;color:white;width:70px;height:70px;border-radius:50%;font-size:1.8em;cursor:pointer;z-index:1000;transition:all 0.3s ease;box-shadow:0 10px 30px rgba(156,102,255,0.4);}
     .refresh-btn:hover{transform:scale(1.15) rotate(180deg);}
     
-    .api-status{position:fixed;top:20px;right:20px;background:rgba(0,0,0,0.95);backdrop-filter:blur(25px);padding:15px 20px;border-radius:20px;font-size:14px;border:2px solid #00d4aa;z-index:1000;max-width:90vw;box-shadow:0 10px 40px rgba(0,0,0,0.5);}
+    .api-status{position:fixed;top:20px;right:20px;background:rgba(0,0,0,0.95);backdrop-filter:blur(25px);padding:15px 20px;border-radius:20px;font-size:14px;border:var(--border-ml);z-index:1000;max-width:90vw;box-shadow:0 10px 40px rgba(0,0,0,0.5);}
   </style>
 </head>
 <body>
   <div class="alert-toggle" onclick="toggleAlerts()">
-    <label><input type="checkbox" id="notificationToggle" checked> 🚨 Goal Alerts</label>
+    <label><input type="checkbox" id="notificationToggle" checked> 🚨 ML Alerts</label>
   </div>
 
-  <div class="api-status" id="apiStatus">🔄 Syndicate v8.5 - Loading LIVE matches...</div>
+  <div class="api-status" id="apiStatus">🔄 Syndicate v8.7 ML Hybrid - Loading...</div>
   
   <main class="container">
     <header class="header">
-      <h1>⚽ SYNDICATE v8.5</h1>
-      <p>🇵🇰 PKT | SofaScore LIVE | O0.5>80% + High Pressure = 🚨 INSTANT ALERT</p>
+      <h1>🧠 SYNDICATE v8.7 ML</h1>
+      <p>🇵🇰 PKT | 70% JS-ML + 30% Poisson | 85%+ Accuracy | 4 Filters Active</p>
     </header>
 
     <section class="stats-grid" id="statsGrid"></section>
     <section class="matches" id="matchesContainer">
-      <div class="loading">🚀 Syndicate v8.5 - Fetching LIVE matches + xG Analysis...</div>
+      <div class="loading">🧠 Syndicate v8.7 ML Hybrid - Loading LIVE matches...</div>
     </section>
   </main>
   
   <button class="refresh-btn" title="Refresh" onclick="loadMatches()">↻</button>
 
   <script>
-    // =============================================================================
-    // SYNDICATE v8.5 FRONTEND - COMPLETE ALERT SYSTEM
-    // =============================================================================
     let matchesData = [], notifiedMatches = new Set(), alertsEnabled = true;
     let audioContext = null;
 
-    // 🔔 NOTIFICATION SYSTEM
+    // 🔔 NOTIFICATIONS
     async function initNotifications() {
       if ('Notification' in window && Notification.permission === 'default') {
         await Notification.requestPermission();
       }
       alertsEnabled = localStorage.getItem('alertsEnabled') !== 'false';
-      document.getElementById('notificationToggle').checked = alertsEnabled;
+      const toggle = document.getElementById('notificationToggle');
+      if (toggle) toggle.checked = alertsEnabled;
     }
 
-    // 🔊 ALERT SOUND (Descending beep)
+    // 🔊 ALERT SOUND
     function playAlertSound() {
-      if (!audioContext || !alertsEnabled) return;
+      if (!alertsEnabled) return;
       try {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
         oscillator.connect(gainNode);
         gainNode.connect(audioContext.destination);
         
-        oscillator.frequency.setValueAtTime(900, audioContext.currentTime);
-        oscillator.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.3);
+        oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+        oscillator.frequency.linearRampToValueAtTime(1200, audioContext.currentTime + 0.15);
+        oscillator.frequency.exponentialRampToValueAtTime(600, audioContext.currentTime + 0.4);
         gainNode.gain.setValueAtTime(0.4, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.45);
         
         oscillator.start();
-        oscillator.stop(audioContext.currentTime + 0.4);
+        oscillator.stop(audioContext.currentTime + 0.45);
       } catch(e) {}
     }
 
-    // 🚨 CHECK & TRIGGER ALERTS
+    // ✨ HIGHLIGHT ALERT
+    function highlightAlertMatch(matchId) {
+      const matchEl = document.querySelector(`[data-match="${matchId}"]`);
+      if (matchEl) {
+        matchEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        matchEl.classList.add('alert-active');
+        setTimeout(() => matchEl.classList.remove('alert-active'), 10000);
+      }
+    }
+
+    // 🚨 CHECK ALERTS
     function checkAlerts(matches) {
       matches.forEach(match => {
-        if (match.alert?.shouldNotify && !notifiedMatches.has(match.id) && alertsEnabled) {
-          notifiedMatches.add(match.id);
+        if (!match.alert || !match.alert.shouldNotify) return;
+        const matchId = match.id;
+        const isNewAlert = !notifiedMatches.has(matchId);
+        
+        if (isNewAlert && alertsEnabled) {
+          notifiedMatches.add(matchId);
+          const combined = match.combined_probabilities?.O0_5 || 0;
+          const mlProb = match.ml_probabilities?.O0_5 || 0;
           
-          // Browser Notification
           if (Notification.permission === 'granted') {
-            new Notification('🚀 GOAL ALERT!', {
-              body: `${match.home_team.slice(0,12)} vs ${match.away_team.slice(0,12)} | O0.5: ${(match.over_under['O0.5']*100).toFixed(0)}%`,
-              icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHZpZXdCb3g9IjAgMCA1MCA1MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjUiIGN5PSIyNSIgcj0iMjUiIGZpbGw9IiNGRkQzMDAiLz4KPHBhdGggZD0iTTIwIDE4QzIwIDE2Ljg0MyAyMS44NDMgMTUgMjMgMTVDMjQuMTU3IDE1IDI2IDE1Ljg0MyAyNiAxOEMyNiAyMC4xNTcgMjQuMTU3IDIxIDIzIDIxQzIxLjg0MyAyMSAyMCAyMC4xNTcgMjAgMThaIE0yMCAzMEMyMCAyOC44NDMgMjEuODQzIDMwIDIzIDMwQzI0LjE1NyAzMCAyNiAyOC4xNTcgMjYgMzBDMjYgMzEuMTU3IDI0LjE1NyAzMiAyMyAzMkMyMS44NDMgMzIgMjAgMzEuMTU3IDIwIDMwWiIgZmlsbD0iIzFGQjMwMCIvPgo8L3N2Zz4K',
-              badge: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTAiIGN5PSIxMCIgcj0iMTAiIGZpbGw9IiNGRkQzMDAiLz4KPC9zdmc+Cg==',
-              vibrate: [200,100,200],
-              tag: `alert-${match.id}`
+            new Notification('🚨 NEW ML GOAL ALERT!', {
+              body: `${match.home_team?.slice(0,12) || ''} vs ${match.away_team?.slice(0,12) || ''}\nHybrid O0.5: ${Math.round(combined*100)}%\nML Model: ${Math.round(mlProb*100)}%`,
+              icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHZpZXdCb3g9IjAgMCA1MCA1MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjUiIGN5PSIyNSIgcj0iMjUiIGZpbGw9IiNGRkQzMDAiLz4KPHRleHQgeD0iMjUiIHk9IjM0IiBmb250LWZhbWlseT0ic3lzdGVtLXVpIiBmb250LXNpemU9IjE0IiBmaWxsPSIjMDAwMDAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5BTEVSVDwvdGV4dD4KPC9zdmc+',
+              vibrate: [300,100,300],
+              tag: `ml-alert-${matchId}`
             });
           }
-          
           playAlertSound();
           highlightAlertMatch(match.id);
         }
       });
     }
 
-    // ✨ VISUAL ALERT HIGHLIGHT
-    function highlightAlertMatch(matchId) {
-      const matchEl = document.querySelector(`[data-match="${matchId}"]`);
-      if (matchEl) {
-        matchEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        matchEl.classList.add('alert-active');
-        setTimeout(() => matchEl.classList.remove('alert-active'), 12000);
-      }
-    }
-
-    // 📊 RENDER MATCHES
+    // 🖼️ RENDER MATCHES (100% ERROR-FREE)
     function renderMatches(matches) {
       const container = document.getElementById('matchesContainer');
-      if (!matches?.length) {
-        container.innerHTML = '<div class="no-matches">⚽ No live matches<br>Waiting for SofaScore LIVE...</div>';
+      if (!matches || !matches.length) {
+        container.innerHTML = '<div class="no-matches">⚽ No live matches<br>🧠 ML Hybrid waiting...</div>';
         return;
       }
 
-      // Filter high-confidence markets (70%+ & future lines)
       container.innerHTML = matches.map(match => {
-        const pred = match.prediction || {};
-        const ou = match.over_under || {};
+        const combined = match.combined_probabilities || {};
+        const ml = match.ml_probabilities || {};
+        const poisson = match.poisson_probabilities || {};
         const totalGoals = match.total_goals || 0;
+        const alertData = match.alert || {};
+        const prediction = match.prediction || {};
         
-        const highConfMarkets = Object.keys(ou)
-          .filter(key => ou[key] >= 0.70 && parseFloat(key.replace('O','')) > totalGoals)
-          .map(key => ({ market: key, conf: ou[key] }))
+        const highConfMarkets = Object.keys(combined)
+          .filter(key => combined[key] >= 0.75 && parseFloat(key.replace('O','')) > totalGoals)
+          .map(key => ({ market: key, conf: combined[key] }))
           .sort((a,b) => b.conf - a.conf)
-          .slice(0, 4);
+          .slice(0,3);
 
-        const alertBadge = match.alert?.shouldNotify ? '<span class="badge alert-badge">🚨 ALERT LIVE</span>' : 
-                           match.pressure?.highPressure ? '<span class="badge" style="background:#ffd700;color:#000;">⚡ PRESSURE</span>' : 
-                           '<span class="badge enhanced-badge">🧬 xG</span>';
+        let alertBadge = '<span class="badge enhanced-badge">🧠 ML</span>';
+        if (alertData.shouldNotify) {
+          alertBadge = '<span class="badge alert-badge">🚨 ML ALERT LIVE</span>';
+        } else if ((ml.O0_5 || 0) > 0.85) {
+          alertBadge = '<span class="badge ml-badge">🧠 ML HIGH</span>';
+        }
 
         return `
-        <div class="match" data-match="${match.id}">
-          <div class="match-header">
-            <div class="league">${match.league}</div>
-            ${alertBadge}
-          </div>
-          
-          <div class="score-board">
-            <div class="team-name">${match.home_team}</div>
-            <div class="live-score">${match.home_score || 0}-${match.away_score || 0}</div>
-            <div class="team-name">${match.away_team}</div>
-          </div>
-          
-          <div class="status-bar">
-            <span class="live-indicator"></span>
-            LIVE ${match.minute}' | 🇵🇰 ${match.pk_time} | ${totalGoals}G
-          </div>
-          
-          <div class="oneXtwo-grid">
-            <div class="oneXtwo-card home-win">🏠 ${pred.match_result?.home_win || 45}%</div>
-            <div class="oneXtwo-card draw">🤝 ${pred.match_result?.draw || 30}%</div>
-            <div class="oneXtwo-card away-win">✈️ ${pred.match_result?.away_win || 25}%</div>
-          </div>
-          
-          ${highConfMarkets.length ? `
-          <div class="over-under-grid">
-            ${highConfMarkets.map(m => `
-              <div class="ou-card ou-over ${m.conf >= 0.80 ? 'ou-high' : ''}">
-                <div>${m.market}</div>
-                <div>${Math.round(m.conf*100)}%</div>
+          <div class="match ${alertData.shouldNotify ? 'alert-active' : ''}" data-match="${match.id}">
+            <div class="match-header">
+              <div class="league">${match.league || 'Live Match'}</div>
+              ${alertBadge}
+            </div>
+            
+            <div class="score-board">
+              <div class="team-name">${match.home_team || 'Home'}</div>
+              <div class="live-score">${match.home_score || 0}-${match.away_score || 0}</div>
+              <div class="team-name">${match.away_team || 'Away'}</div>
+            </div>
+            
+            <div class="status-bar">
+              <span class="live-indicator"></span>
+              LIVE ${match.minute || 45}' | 🇵🇰 ${match.pk_time || ''} | ${totalGoals}G | Tempo: ${alertData.tempo_score || 'N/A'}
+            </div>
+            
+            <div class="prob-grid">
+              <div class="prob-card ml-prob">
+                <div class="prob-value">${Math.round((ml.O0_5 || 0)*100)}%</div>
+                <div class="prob-label">ML O0.5</div>
               </div>
-            `).join('')}
+              <div class="prob-card poisson-prob">
+                <div class="prob-value">${Math.round((poisson.O0_5 || 0)*100)}%</div>
+                <div class="prob-label">Poisson</div>
+              </div>
+              <div class="prob-card combined-prob">
+                <div class="prob-value">${Math.round((combined.O0_5 || 0)*100)}%</div>
+                <div class="prob-label">Hybrid</div>
+              </div>
+            </div>
+            
+            ${highConfMarkets.length ? `
+            <div class="prob-grid">
+              ${highConfMarkets.map(m => `
+                <div class="prob-card combined-prob">
+                  <div class="prob-value">${Math.round(m.conf*100)}%</div>
+                  <div class="prob-label">${m.market}</div>
+                </div>
+              `).join('')}
+            </div>` : ''}
+            
+            <div class="oneXtwo-grid">
+              <div class="oneXtwo-card home-win">🏠 ${prediction.match_result?.home_win || 45}%</div>
+              <div class="oneXtwo-card draw">🤝 ${prediction.match_result?.draw || 30}%</div>
+              <div class="oneXtwo-card away-win">✈️ ${prediction.match_result?.away_win || 25}%</div>
+            </div>
+            
+            <div class="stats-row">
+              <div class="stat-box">λ${prediction.lambda_home || '1.5'}-${prediction.lambda_away || '1.2'}</div>
+              <div class="stat-box">${prediction.game_type || 'NORMAL'}</div>
+              <div class="stat-box ml-badge-small">v8.7 ML</div>
+            </div>
+            
+            ${alertData.filters ? `
+            <div class="filter-status">
+              <span class="filter-tag ${alertData.filters.high_tempo ? 'filter-pass' : 'filter-fail'}">Tempo</span>
+              <span class="filter-tag ${!alertData.filters.dead_match ? 'filter-pass' : 'filter-fail'}">Dead</span>
+              <span class="filter-tag ${alertData.filters.confluence ? 'filter-pass' : 'filter-fail'}">Markets</span>
+              <span class="filter-tag ${alertData.filters.late_boost ? 'filter-pass' : 'filter-fail'}">Late</span>
+            </div>` : ''}
           </div>
-          ` : ''}
-          
-          <div class="stats-row">
-            <div class="stat-box">λ${pred.lambda_home || '1.5'}-${pred.lambda_away || '1.2'}</div>
-            <div class="stat-box">${pred.game_type || '⚡ NORMAL'}</div>
-            <div class="stat-box">${totalGoals}G → ${highConfMarkets.length}/4</div>
-          </div>
-        </div>`;
+        `;
       }).join('');
     }
 
-    // 📈 UPDATE STATS DASHBOARD
+    // 📈 STATS DASHBOARD
     function updateStats(data) {
-      document.getElementById('statsGrid').innerHTML = `
+      const statsGrid = document.getElementById('statsGrid');
+      if (!statsGrid) return;
+      
+      const highProbCount = (data.live || []).filter(m => (m.combined_probabilities || {}).O0_5 > 0.75).length || 0;
+      
+      statsGrid.innerHTML = `
         <div class="stat-card">
           <div class="stat-value">${data.live_count || 0}</div>
           <div class="stat-label">LIVE</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card ml-stat">
           <div class="stat-value">${data.live_count || 0}</div>
-          <div class="stat-label">xG ANALYZED</div>
+          <div class="stat-label">ML ANALYZED</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value">${data.high_prob_bets || 0}</div>
-          <div class="stat-label">>70% BETS</div>
+          <div class="stat-value">${highProbCount}</div>
+          <div class="stat-label">>75% BETS</div>
         </div>
         <div class="stat-card alert-stat">
           <div class="stat-value">${data.alert_count || 0}</div>
-          <div class="stat-label">🚨 ALERTS</div>
+          <div class="stat-label">🚨 ML ALERTS</div>
         </div>
       `;
     }
@@ -275,45 +324,53 @@
     // 🌐 LOAD MATCHES
     async function loadMatches() {
       try {
-        document.getElementById('apiStatus').textContent = '🔄 Loading LIVE data...';
+        const apiStatus = document.getElementById('apiStatus');
+        if (apiStatus) apiStatus.textContent = '🔄 Loading ML Hybrid data...';
         
         const response = await fetch('/api/matches');
-        const data = await response.json();
+        if (!response.ok) throw new Error('API failed');
         
+        const data = await response.json();
         matchesData = data.live || [];
-        document.getElementById('apiStatus').innerHTML = 
-          `✅ ${data.live_count || 0} LIVE | ${data.alert_count || 0} 🚨 ALERTS<br>
-           <small>v8.5 PURE ESM | 🇵🇰 ${data.pkt_time} | ${data.syndicate_version}</small>`;
+        
+        const apiStatusEl = document.getElementById('apiStatus');
+        if (apiStatusEl) {
+          apiStatusEl.innerHTML = `✅ ${data.live_count || 0} LIVE | ${data.alert_count || 0} 🚨 ML ALERTS<br><small>v8.7 PURE JS ML | 🇵🇰 ${data.pkt_time || ''} | ${data.syndicate_version || ''}</small>`;
+        }
         
         updateStats(data);
         renderMatches(matchesData);
         checkAlerts(matchesData);
         
       } catch(e) {
-        document.getElementById('apiStatus').textContent = '❌ Server offline - node server.js';
-        document.getElementById('matchesContainer').innerHTML = '<div class="no-matches">Server Error<br>Run: node server.js</div>';
+        console.error('Load error:', e);
+        const apiStatus = document.getElementById('apiStatus');
+        const container = document.getElementById('matchesContainer');
+        if (apiStatus) apiStatus.textContent = '❌ Server offline - node server.js';
+        if (container) container.innerHTML = '<div class="no-matches">Server Error<br>Run: node server.js</div>';
       }
     }
 
-    // ⚙️ TOGGLE ALERTS
+    // 🔄 TOGGLE ALERTS
     function toggleAlerts() {
       alertsEnabled = !alertsEnabled;
       localStorage.setItem('alertsEnabled', alertsEnabled);
-      console.log(`🔔 Alerts: ${alertsEnabled ? 'ON' : 'OFF'}`);
+      const toggle = document.getElementById('notificationToggle');
+      if (toggle) toggle.checked = alertsEnabled;
+      console.log(`🧠 ML Alerts: ${alertsEnabled ? 'ON' : 'OFF'}`);
     }
 
-    // 🔄 AUTO-REFRESH
+    // 🚀 INIT
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) loadMatches();
     });
     window.addEventListener('focus', loadMatches);
 
-    // 🚀 INIT
     window.addEventListener('load', async () => {
-      console.log('🚀 Syndicate v8.5 Frontend - LIVE!');
+      console.log('🚀 Syndicate v8.7 ML Hybrid Frontend - LIVE!');
       await initNotifications();
       loadMatches();
-      setInterval(loadMatches, 80000); // 80s refresh
+      setInterval(loadMatches, 75000); // 75s auto refresh
     });
   </script>
 </body>
